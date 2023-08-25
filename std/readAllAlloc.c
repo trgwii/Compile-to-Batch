@@ -8,7 +8,11 @@
 #include <stdio.h>
 
 static Result(Str) readAllAlloc(Allocator ally, FILE *f) {
-  Str str = alloc(ally, 16);
+  Result(Str) res = alloc(ally, 16);
+  if (!res.ok) {
+    return res;
+  }
+  Str str = res.val;
   if (!str.ptr) {
     return Result_Err(Str, "could not allocate string");
   }
@@ -18,17 +22,13 @@ static Result(Str) readAllAlloc(Allocator ally, FILE *f) {
     total_read += read;
     if (str.len <= total_read) {
       size_t new_len = str.len * 2;
-      Str new_str = resizeAllocation(ally, str, new_len);
-      if (!new_str.ptr) {
+      resizeAllocation(ally, &str, new_len);
+      if (str.len != new_len) {
         return Result_Err(Str, "could not expand string");
       }
-      str = new_str;
     }
   }
-  Str final_str = resizeAllocation(ally, str, total_read);
-  if (final_str.ptr) {
-    str = final_str;
-  }
+  resizeAllocation(ally, &str, total_read);
   return Result_Ok(Str, str);
 }
 

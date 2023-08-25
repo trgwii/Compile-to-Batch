@@ -2,6 +2,7 @@
 #define ALLOCATOR_H
 
 #include <stddef.h>
+#include "Result.h"
 #include "Str.h"
 #include "panic.c"
 
@@ -17,18 +18,25 @@ typedef struct {
 	size_t cur;
 } Bump;
 
-static Str alloc(Allocator ally, size_t size) {
-	return (Str){
+static Result(Str) alloc(Allocator ally, size_t size) {
+	void *ptr = ally.realloc(NULL, size, 0, ally.state);
+	if (!ptr) {
+		return Result_Err(Str, "alloc: out of memory");
+	}
+	Str res = {
 		.ptr = ally.realloc(NULL, size, 0, ally.state),
 		.len = size,
 	};
+	return Result_Ok(Str, res);
 }
 
-static Str resizeAllocation(Allocator ally, Str allocation, size_t new_size) {
-	return (Str){
-		.ptr = ally.realloc(allocation.ptr, new_size, allocation.len, ally.state),
-		.len = new_size,
-	};
+static void resizeAllocation(Allocator ally, Str *allocation, size_t new_size) {
+	void *ptr = ally.realloc(allocation->ptr, new_size, allocation->len, ally.state);
+	if (!ptr) {
+		return;
+	}
+	allocation->ptr = ptr;
+	allocation->len = new_size;
 }
 
 static void *bumpRealloc(void *ptr, size_t size, size_t old_size, void *state) {

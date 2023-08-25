@@ -5,6 +5,7 @@
 #include "parser/tokenizer.c"
 #include "std/Result_unwrap.h"
 #include "std/readFile.c"
+#include "std/panic.c"
 #include "std/Allocator.c"
 #include "std/writeAll.c"
 
@@ -12,8 +13,7 @@ int main(int argc, char **argv, char **envp) {
   (void)envp;
 
   if (argc < 2) {
-    fprintf(stderr, "usage: bc [file]\n");
-    return 1;
+    panic("usage: bc [file]");
   }
 
   char mem[16384];
@@ -30,7 +30,11 @@ int main(int argc, char **argv, char **envp) {
   };
 
   Result(Str) res = readFile(ally, argv[1]);
-  Str data = Result_unwrap(Str, res);
+  if (!res.ok) {
+    fprintf(stderr, "Error: %s: %s\n", res.err, argv[1]);
+    return 1;
+  }
+  Str data = res.val;
 
   fprintf(stdout, "---  SOURCE ---\n");
   writeAll(stdout, data);
@@ -48,7 +52,7 @@ int main(int argc, char **argv, char **envp) {
 
   fprintf(stdout, "\n--- /TOKENS ---\n");
 
-  data = resizeAllocation(ally, data, 0);
+  resizeAllocation(ally, &data, 0);
 
   return 0;
 }

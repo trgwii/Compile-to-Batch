@@ -5,7 +5,7 @@
 #include <stdlib.h>
 
 __attribute__((noreturn)) static void panic(const char *msg) {
-  printf("%s\n", msg);
+  fprintf(stderr, "%s\n", msg);
   exit(1);
 }
 
