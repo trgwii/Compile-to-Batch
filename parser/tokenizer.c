@@ -4,7 +4,7 @@
 
 typedef struct {
   Str data;
-  size_t idx;
+  size_t cur;
   size_t line;
   size_t col;
 } TokenIterator;
@@ -52,25 +52,25 @@ static void updateLocationInfo(TokenIterator *it, char c) {
 }
 
 static Token nextToken(TokenIterator *it) {
-  if (it->idx >= it->data.len) {
+  if (it->cur >= it->data.len) {
     return (Token){.type = TokenType_EOF};
   }
-  char *c = &it->data.ptr[it->idx++];
+  char *c = &it->data.ptr[it->cur++];
   updateLocationInfo(it, *c);
   while (isblank(*c) || *c == '\n') {
-    if (it->idx >= it->data.len) {
+    if (it->cur >= it->data.len) {
       return (Token){.type = TokenType_EOF};
     }
-    c = &it->data.ptr[it->idx++];
+    c = &it->data.ptr[it->cur++];
     updateLocationInfo(it, *c);
   }
   if (isalpha(*c)) {
     char *start = c;
     while (isalpha(*c)) {
-      if (it->idx > it->data.len) {
+      if (it->cur > it->data.len) {
         break;
       }
-      c = &it->data.ptr[it->idx++];
+      c = &it->data.ptr[it->cur++];
       updateLocationInfo(it, *c);
     }
     return (Token){.type = TokenType_Ident,

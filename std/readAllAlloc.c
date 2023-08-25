@@ -4,11 +4,11 @@
 #include "Result.h"
 #include "Str.h"
 #include "defs.h"
+#include "Allocator.c"
 #include <stdio.h>
 
-static Result(Str) readAllAlloc(FILE *f) {
-  Str str = {.len = 16};
-  str.ptr = malloc(str.len);
+static Result(Str) readAllAlloc(Allocator ally, FILE *f) {
+  Str str = alloc(ally, 16);
   if (!str.ptr) {
     return Result_Err(Str, "could not allocate string");
   }
@@ -18,20 +18,16 @@ static Result(Str) readAllAlloc(FILE *f) {
     total_read += read;
     if (str.len <= total_read) {
       size_t new_len = str.len * 2;
-      char *new_ptr = realloc(str.ptr, new_len);
-      if (!new_ptr) {
+      Str new_str = resizeAllocation(ally, str, new_len);
+      if (!new_str.ptr) {
         return Result_Err(Str, "could not expand string");
       }
-      str = (Str){
-          .ptr = new_ptr,
-          .len = new_len,
-      };
+      str = new_str;
     }
   }
-  str.len = total_read;
-  char *final_ptr = realloc(str.ptr, total_read);
-  if (final_ptr) {
-    str.ptr = final_ptr;
+  Str final_str = resizeAllocation(ally, str, total_read);
+  if (final_str.ptr) {
+    str = final_str;
   }
   return Result_Ok(Str, str);
 }
