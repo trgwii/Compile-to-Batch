@@ -13,11 +13,6 @@ typedef struct {
 	void *state;
 } Allocator;
 
-typedef struct {
-	Str mem;
-	size_t cur;
-} Bump;
-
 static Result(Str) alloc(Allocator ally, size_t size) {
 	void *ptr = ally.realloc(NULL, size, 0, ally.state);
 	if (!ptr) {
@@ -38,6 +33,11 @@ static void resizeAllocation(Allocator ally, Str *allocation, size_t new_size) {
 	allocation->ptr = ptr;
 	allocation->len = new_size;
 }
+
+typedef struct {
+	Str mem;
+	size_t cur;
+} Bump;
 
 static void *bumpRealloc(void *ptr, size_t size, size_t old_size, void *state) {
 	Bump *bump = (Bump *)state;
