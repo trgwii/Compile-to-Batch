@@ -18,16 +18,16 @@ int main(void) {
              // " -Wno-error=unused-variable"
 
             #ifdef _WIN32
-             " -o bc.exe"
+             " -o bin/bc.exe"
              #else
-             " -o bc"
+             " -o bin/bc"
              #endif
-             " main.c"))
+             " src/main.c"))
     exit(1);
   #ifdef _WIN32
-  if (system("bc main.bb"))
+  if (system("bin\\bc main.bb"))
   #else
-  if (system("./bc main.bb"))
+  if (system("./bin/bc main.bb"))
   #endif
     exit(1);
 }

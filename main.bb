@@ -1,4 +1,6 @@
-wefwfopwefopk
-wfwefjiowiojef
-423
-Xef
+wefwfopwefopk;
+wfwefjiowiojef;
+423;
+Xef;
+print("Hello");
+print("Escaped\"String");

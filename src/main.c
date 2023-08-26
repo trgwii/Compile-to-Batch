@@ -2,11 +2,11 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+#include "parser/parser.c"
 #include "parser/tokenizer.c"
-#include "std/Result_unwrap.h"
-#include "std/readFile.c"
-#include "std/panic.c"
 #include "std/Allocator.c"
+#include "std/panic.c"
+#include "std/readFile.c"
 #include "std/writeAll.c"
 
 int main(int argc, char **argv, char **envp) {
@@ -18,15 +18,16 @@ int main(int argc, char **argv, char **envp) {
 
   char mem[16384];
   Bump state = {
-    .mem = {
-      .ptr = mem,
-      .len = 16384,
-    },
-    .cur = 0,
+      .mem =
+          {
+              .ptr = mem,
+              .len = 16384,
+          },
+      .cur = 0,
   };
   Allocator ally = {
-    .realloc = bumpRealloc,
-    .state = &state,
+      .realloc = bumpRealloc,
+      .state = &state,
   };
 
   Result(Str) res = readFile(ally, argv[1]);
@@ -51,6 +52,13 @@ int main(int argc, char **argv, char **envp) {
   }
 
   fprintf(stdout, "\n--- /TOKENS ---\n");
+
+  fprintf(stdout, "---  PARSE ---\n");
+  resetTokenizer(&it);
+
+  parse(ally, &it);
+
+  fprintf(stdout, "--- /PARSE ---\n");
 
   resizeAllocation(ally, &data, 0);
 
