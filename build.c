@@ -1,5 +1,11 @@
 #include <stdlib.h>
 
+#ifdef _WIN32
+#define OUT "bin\\bc.exe"
+#else
+#define OUT "./bin/bc"
+#endif
+
 int main(void) {
   if (system("zig cc"
              " -Wall"
@@ -12,22 +18,12 @@ int main(void) {
              " -Wno-declaration-after-statement"
              " -Wno-unsafe-buffer-usage"
 
-            // Weird Windows thing
+#ifdef _WIN32
+             // Weird Windows thing
              " -Wno-used-but-marked-unused"
-
-             // " -Wno-error=unused-variable"
-
-            #ifdef _WIN32
-             " -o bin/bc.exe"
-             #else
-             " -o bin/bc"
-             #endif
-             " src/main.c"))
+#endif
+             " -o " OUT " src/main.c"))
     exit(1);
-  #ifdef _WIN32
-  if (system("bin\\bc main.bb"))
-  #else
-  if (system("./bin/bc main.bb"))
-  #endif
+  if (system(OUT " main.bb"))
     exit(1);
 }

@@ -26,16 +26,18 @@ int main(int argc, char **argv, char **envp) {
       .cur = 0,
   };
   Allocator ally = {
+      // .realloc = (Realloc *)realloc,
+      // .state = NULL,
       .realloc = bumpRealloc,
       .state = &state,
   };
 
-  Result(Str) res = readFile(ally, argv[1]);
+  Result(Slice_char) res = readFile(ally, argv[1]);
   if (!res.ok) {
     fprintf(stderr, "Error: %s: %s\n", res.err, argv[1]);
     return 1;
   }
-  Str data = res.val;
+  Slice(char) data = res.val;
 
   fprintf(stdout, "---  SOURCE ---\n");
   writeAll(stdout, data);
@@ -43,7 +45,7 @@ int main(int argc, char **argv, char **envp) {
 
   fprintf(stdout, "---  TOKENS ---\n");
 
-  TokenIterator it = {.data = data, .cur = 0, .line = 1, .col = 1};
+  TokenIterator it = tokenizer(data);
   Token t = nextToken(&it);
 
   while (t.type) {
@@ -60,7 +62,7 @@ int main(int argc, char **argv, char **envp) {
 
   fprintf(stdout, "--- /PARSE ---\n");
 
-  resizeAllocation(ally, &data, 0);
+  resizeAllocation(ally, char, &data, 0);
 
   return 0;
 }

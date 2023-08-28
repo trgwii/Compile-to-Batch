@@ -2,11 +2,10 @@
 #define WRITE_ALL_H
 
 #include "Result.h"
-#include "Str.h"
 #include "defs.h"
 #include <stdio.h>
 
-static void writeAll(FILE *f, Str str) {
+static void writeAll(FILE *f, Slice(char) str) {
   size_t written = 0;
   size_t total_written = 0;
   while ((written =

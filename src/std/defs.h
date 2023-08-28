@@ -2,8 +2,11 @@
 #define DEFS_H
 
 #include "Result.h"
-#include "Str.h"
+#include "Slice.h"
 
-DefResult(Str);
+DefSlice(char);
+DefSlice(void);
+DefResult(Slice_char);
+DefResult(Slice_void);
 
 #endif /* DEFS_H */

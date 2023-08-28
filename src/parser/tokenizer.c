@@ -1,18 +1,22 @@
 #ifndef TOKENIZER_H
 #define TOKENIZER_H
 
-#include "../std/Str.h"
+#include "../std/defs.h"
 #include "../std/panic.c"
 #include <ctype.h>
 #include <stdbool.h>
 #include <stddef.h>
 
 typedef struct {
-  Str data;
+  Slice(char) data;
   size_t cur;
   size_t line;
   size_t col;
 } TokenIterator;
+
+static TokenIterator tokenizer(Slice(char) data) {
+  return (TokenIterator){.data = data, .cur = 0, .line = 1, .col = 1};
+}
 
 typedef enum {
   TokenType_EOF = 0,
@@ -29,9 +33,9 @@ typedef enum {
 typedef struct {
   TokenType type;
   union {
-    Str ident;
-    Str number;
-    Str string;
+    Slice(char) ident;
+    Slice(char) number;
+    Slice(char) string;
     struct {
       size_t line;
       size_t col;

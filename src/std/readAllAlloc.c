@@ -1,20 +1,19 @@
 #ifndef READ_ALL_ALLOC_H
 #define READ_ALL_ALLOC_H
 
-#include "Result.h"
-#include "Str.h"
-#include "defs.h"
 #include "Allocator.c"
+#include "Result.h"
+#include "defs.h"
 #include <stdio.h>
 
-static Result(Str) readAllAlloc(Allocator ally, FILE *f) {
-  Result(Str) res = alloc(ally, 16);
+static Result(Slice_char) readAllAlloc(Allocator ally, FILE *f) {
+  Result(Slice_char) res = alloc(ally, char, 16);
   if (!res.ok) {
     return res;
   }
-  Str str = res.val;
+  Slice_char str = res.val;
   if (!str.ptr) {
-    return Result_Err(Str, "could not allocate string");
+    return Result_Err(Slice_char, "could not allocate string");
   }
   size_t read = 0;
   size_t total_read = 0;
@@ -22,14 +21,14 @@ static Result(Str) readAllAlloc(Allocator ally, FILE *f) {
     total_read += read;
     if (str.len <= total_read) {
       size_t new_len = str.len * 2;
-      resizeAllocation(ally, &str, new_len);
+      resizeAllocation(ally, char, &str, new_len);
       if (str.len != new_len) {
-        return Result_Err(Str, "could not expand string");
+        return Result_Err(Slice_char, "could not expand string");
       }
     }
   }
-  resizeAllocation(ally, &str, total_read);
-  return Result_Ok(Str, str);
+  resizeAllocation(ally, char, &str, total_read);
+  return Result_Ok(Slice_char, str);
 }
 
 #endif /* READ_ALL_ALLOC_H */

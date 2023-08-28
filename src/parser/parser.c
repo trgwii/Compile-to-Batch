@@ -1,4 +1,5 @@
 #include "../std/Allocator.c"
+#include "../std/Vec.c"
 #include "tokenizer.c"
 
 typedef enum {
@@ -16,13 +17,16 @@ typedef struct Expression {
       struct Expression *parameters;
       size_t parameters_len;
     } call;
-    Str number;
-    Str string;
-    Str identifier;
+    Slice(char) number;
+    Slice(char) string;
+    Slice(char) identifier;
   };
 } Expression;
 
 DefSlice(Expression);
+DefResult(Slice_Expression);
+DefVec(Expression);
+DefResult(Vec_Expression);
 
 typedef enum {
   ExpressionStatement,
@@ -35,9 +39,13 @@ typedef struct {
   };
 } Statement;
 
+DefSlice(Statement);
+DefResult(Slice_Statement);
+DefVec(Statement);
+DefResult(Vec_Statement);
+
 typedef struct {
-  Statement *statements;
-  size_t statements_len;
+  Slice(Statement) statements;
 } Program;
 
 static inline Expression parseExpression(Allocator ally, TokenIterator *it,
@@ -54,17 +62,11 @@ static inline Expression parseExpression(Allocator ally, TokenIterator *it,
     if (next.type == TokenType_OpenParen) {
       // call expression
       nextToken(it);
-      Result(Str) parameters_mem = alloc(ally, sizeof(Expression) * 16);
-      if (!parameters_mem.ok) {
-        panic(parameters_mem.err);
+      Result(Vec_Expression) res = createVec(ally, Expression, 16);
+      if (!res.ok) {
+        panic(res.err);
       }
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wcast-align"
-      Slice(Expression)
-          parameters = {.ptr = (Expression *)parameters_mem.val.ptr,
-                        .len = parameters_mem.val.len / sizeof(Expression)};
-#pragma clang diagnostic pop
-      size_t parameters_len = 0;
+      Vec(Expression) parameters = res.val;
       Token param = nextToken(it);
       while (param.type != TokenType_CloseParen) {
         if (param.type == TokenType_EOF) {
@@ -77,25 +79,19 @@ static inline Expression parseExpression(Allocator ally, TokenIterator *it,
           panic("parseExpression: Parameter list expression not followed by "
                 "comma or close paren ^");
         }
-        if (parameters_len >= parameters.len) {
-          resizeAllocation(ally, (Str *)&parameters, parameters.len * 2);
-          if (parameters_len >= parameters.len) {
-            panic("parseExpression: Failed to extend parameter list");
-          }
+        Expression expr = parseExpression(ally, it, param);
+        if (!appendToVec(&parameters, Expression, &expr)) {
+          panic("Failed to append to parameter list");
         }
-        parameters.ptr[parameters_len++] = parseExpression(ally, it, param);
         param = nextToken(it);
       }
-      resizeAllocation(ally, (Str *)&parameters, parameters_len);
+      shrinkToLength(&parameters, Expression);
 
-      Result(Str) callee_res = alloc(ally, sizeof(Expression));
+      Result(Slice_Expression) callee_res = alloc(ally, Expression, 1);
       if (!callee_res.ok) {
         panic("parseExpression: Failed to allocate callee");
       }
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wcast-align"
-      Expression *callee = (Expression *)callee_res.val.ptr;
-#pragma clang diagnostic pop
+      Expression *callee = callee_res.val.ptr;
       *callee = (Expression){
           .type = IdentifierExpression,
           .identifier = t.ident,
@@ -104,8 +100,8 @@ static inline Expression parseExpression(Allocator ally, TokenIterator *it,
       fprintf(stdout, "CallExpression\n");
       return (Expression){.type = CallExpression,
                           .call = {.callee = callee,
-                                   .parameters = parameters.ptr,
-                                   parameters_len = parameters.len}};
+                                   .parameters = parameters.slice.ptr,
+                                   .parameters_len = parameters.slice.len}};
     }
     // identifier expression
     return (Expression){.type = IdentifierExpression, .identifier = t.ident};
@@ -123,31 +119,24 @@ static inline Expression parseExpression(Allocator ally, TokenIterator *it,
 }
 
 static Program parse(Allocator ally, TokenIterator *it) {
-  Result(Str) res = alloc(ally, sizeof(Statement) * 16);
+  Result(Vec_Statement) res = createVec(ally, Statement, 16);
   if (!res.ok) {
     panic("parse: Failed to alloc statements");
   }
-  size_t statements_len = 0;
-  Str statements = res.val;
+  Vec(Statement) statements = res.val;
   Token t = nextToken(it);
 
   while (t.type) {
 
     if (t.type == TokenType_Ident || t.type == TokenType_Number ||
         t.type == TokenType_String) {
-      if (statements_len >= statements.len) {
-        resizeAllocation(ally, &statements, statements.len * 2);
-        if (statements_len >= statements.len) {
-          panic("parse: Failed to expand statements");
-        }
-      }
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wcast-align"
-      ((Statement *)statements.ptr)[statements_len++] = (Statement){
+      Statement s = {
           .type = ExpressionStatement,
           .expression = parseExpression(ally, it, t),
       };
-#pragma clang diagnostic pop
+      if (!appendToVec(&statements, Statement, &s)) {
+        panic("Failed to append to statement list");
+      }
       Token semi = nextToken(it);
       if (semi.type != TokenType_Semi) {
         printToken(semi);
@@ -157,11 +146,6 @@ static Program parse(Allocator ally, TokenIterator *it) {
 
     t = nextToken(it);
   }
-  return (Program){
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wcast-align"
-      .statements = (Statement *)statements.ptr,
-#pragma clang diagnostic pop
-      .statements_len = statements.len / sizeof(Statement),
-  };
+  shrinkToLength(&statements, Statement);
+  return (Program){.statements = statements.slice};
 }
