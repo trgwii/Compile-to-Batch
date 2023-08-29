@@ -10,6 +10,18 @@
 #include "std/readFile.c"
 #include "std/writeAll.c"
 
+static void printSize(size_t bytes) {
+  if (bytes > 1024 * 1024) {
+    printf("%.2fMiB", (double)bytes / (1024 * 1024));
+    return;
+  }
+  if (bytes > 1024) {
+    printf("%.2fKiB", (double)bytes / 1024);
+    return;
+  }
+  printf("%luB", bytes);
+}
+
 int main(int argc, char **argv, char **envp) {
   (void)envp;
 
@@ -73,6 +85,12 @@ int main(int argc, char **argv, char **envp) {
   fclose(outputFile);
 
   fprintf(stdout, "--- /CODEGEN ---\n");
+
+  fprintf(stdout, "Memory usage: ");
+  printSize(state.cur);
+  fprintf(stdout, " / ");
+  printSize(state.mem.len);
+  fprintf(stdout, "\n");
 
   resizeAllocation(ally, char, &data, 0);
 

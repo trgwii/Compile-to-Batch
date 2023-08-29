@@ -59,7 +59,9 @@ static void outputBatch(Program prog, FILE *out) {
       case IdentifierExpression:
       case NumericExpression:
       case StringExpression: {
-        fprintf(stdout, "Skipped unknown expression\n");
+        fprintf(stdout, "Skipped unknown expression: ");
+        fprintf(stdout, "%1.*s", (int)expr.string.len, expr.string.ptr);
+        fprintf(stdout, "\n");
         continue;
       } break;
       }
