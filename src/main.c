@@ -26,7 +26,7 @@ int main(int argc, char **argv, char **envp) {
   (void)envp;
 
   if (argc < 3) {
-    panic("usage: bc [inputfile.bc] [outputfile.cmd]");
+    panic("usage: bc [inputfile.bb] [outputfile.cmd]");
   }
 
   char mem[16384];
