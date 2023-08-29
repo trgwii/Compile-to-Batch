@@ -1,4 +1,6 @@
+#include "src/std/eql.c"
 #include <stdlib.h>
+#include <string.h>
 
 #ifdef _WIN32
 #define OUT "bin\\bc.exe"
@@ -6,7 +8,17 @@
 #define OUT "./bin/bc"
 #endif
 
-int main(void) {
+bool releaseMode(int argc, char **argv) {
+  for (int i = 1; i < argc; i++) {
+    if (eql((Slice(char)){.ptr = argv[i], .len = strlen(argv[i])},
+            (Slice(char)){.ptr = "release", .len = 7})) {
+      return true;
+    }
+  }
+  return false;
+}
+
+int main(int argc, char **argv) {
   if (system("zig cc"
              " -Wall"
              " -Wextra"
@@ -24,6 +36,19 @@ int main(void) {
 #endif
              " -o " OUT " src/main.c"))
     exit(1);
-  if (system(OUT " main.bb"))
+  if (releaseMode(argc, argv)) {
+    if (system("zig cc"
+               " -O2"
+               " -target x86_64-windows"
+               " -Wno-single-bit-bitfield-constant-conversion"
+               " -o bin/bc.exe src/main.c"))
+      exit(1);
+    if (system("zig cc"
+               " -O2"
+               " -target x86_64-linux-musl"
+               " -o bin/bc src/main.c"))
+      exit(1);
+  }
+  if (system(OUT " main.bb main.cmd"))
     exit(1);
 }

@@ -4,3 +4,4 @@ wfwefjiowiojef;
 Xef;
 print("Hello");
 print("Escaped\"String");
+print("Multi", 42, "Params");

@@ -116,6 +116,20 @@ static Token nextToken(TokenIterator *it) {
     c = nextChar(it);
   }
 
+  // size_t start_cur = it->cur;
+
+  // char buf[16384];
+  // for (size_t i = 0; i < it->data.len; i++) {
+  //   buf[i] = it->data.ptr[i];
+  //   if (buf[i] == '\n' || buf[i] == '\r')
+  //     buf[i] = ' ';
+  // }
+  // fprintf(stdout, "\x1b[30m%1.*s\x1b[0m\n", (int)it->data.len, buf);
+  // for (size_t i = 0; i < start_cur - 1; i++) {
+  //   fprintf(stdout, " ");
+  // }
+  // fprintf(stdout, "\x1b[93m^\x1b[0m\n");
+
   switch (c) {
   case '(':
     return (Token){.type = TokenType_OpenParen};

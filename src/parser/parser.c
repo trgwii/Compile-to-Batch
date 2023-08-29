@@ -1,3 +1,6 @@
+#ifndef PARSER_H
+#define PARSER_H
+
 #include "../std/Allocator.c"
 #include "../std/Vec.c"
 #include "tokenizer.c"
@@ -44,14 +47,51 @@ DefResult(Slice_Statement);
 DefVec(Statement);
 DefResult(Vec_Statement);
 
+static void printExpression(Expression expr) {
+  fprintf(stdout, "Expr:");
+  switch (expr.type) {
+  case CallExpression: {
+    fprintf(stdout, "Call:(");
+    printExpression(*expr.call.callee);
+    fprintf(stdout, ") with (");
+    if (expr.call.parameters_len > 0) {
+      printExpression(expr.call.parameters[0]);
+    }
+    for (size_t i = 1; i < expr.call.parameters_len; i++) {
+      fprintf(stdout, ", ");
+      printExpression(expr.call.parameters[i]);
+    }
+    fprintf(stdout, ")");
+  } break;
+  case IdentifierExpression: {
+    fprintf(stdout, "Ident(%1.*s)", (int)expr.identifier.len,
+            expr.identifier.ptr);
+  } break;
+  case NumericExpression: {
+    fprintf(stdout, "Number(%1.*s)", (int)expr.number.len, expr.number.ptr);
+  } break;
+  case StringExpression: {
+    fprintf(stdout, "String(\"%1.*s\")", (int)expr.string.len, expr.string.ptr);
+  } break;
+  }
+}
+
+static void printStatement(Statement stmt) {
+  switch (stmt.type) {
+  case ExpressionStatement: {
+    Expression expr = stmt.expression;
+    printExpression(expr);
+    fprintf(stdout, "\n");
+  } break;
+  }
+}
+
 typedef struct {
   Slice(Statement) statements;
 } Program;
 
 static inline Expression parseExpression(Allocator ally, TokenIterator *it,
                                          Token t) {
-  fprintf(stdout, "parseExpr: ");
-  printToken(t);
   switch (t.type) {
   case TokenType_Number:
     return (Expression){.type = NumericExpression, .number = t.number};
@@ -75,13 +115,16 @@ static inline Expression parseExpression(Allocator ally, TokenIterator *it,
         Token paramSep = nextToken(it);
         if (paramSep.type != TokenType_Comma &&
             paramSep.type != TokenType_CloseParen) {
-          printToken(paramSep);
           panic("parseExpression: Parameter list expression not followed by "
                 "comma or close paren ^");
         }
+
         Expression expr = parseExpression(ally, it, param);
         if (!appendToVec(&parameters, Expression, &expr)) {
           panic("Failed to append to parameter list");
+        }
+        if (paramSep.type == TokenType_CloseParen) {
+          break;
         }
         param = nextToken(it);
       }
@@ -97,7 +140,6 @@ static inline Expression parseExpression(Allocator ally, TokenIterator *it,
           .identifier = t.ident,
       };
 
-      fprintf(stdout, "CallExpression\n");
       return (Expression){.type = CallExpression,
                           .call = {.callee = callee,
                                    .parameters = parameters.slice.ptr,
@@ -149,3 +191,5 @@ static Program parse(Allocator ally, TokenIterator *it) {
   shrinkToLength(&statements, Statement);
   return (Program){.statements = statements.slice};
 }
+
+#endif /* PARSER_H */
