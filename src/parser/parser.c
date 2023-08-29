@@ -155,7 +155,7 @@ static inline Expression parseExpression(Allocator ally, TokenIterator *it,
   case TokenType_Comma:
   case TokenType_Unknown: {
     printToken(t);
-    panic("parseExpression: Invalid TokenType ^");
+    panic("\nparseExpression: Invalid TokenType ^");
   }
   }
 }
@@ -182,7 +182,7 @@ static Program parse(Allocator ally, TokenIterator *it) {
       Token semi = nextToken(it);
       if (semi.type != TokenType_Semi) {
         printToken(semi);
-        panic("parse: Unknown token following expression statement ^");
+        panic("\nparse: Unknown token following expression statement ^");
       }
     }
 

@@ -52,23 +52,31 @@ int main(int argc, char **argv, char **envp) {
   }
   Slice(char) data = res.val;
 
-  fprintf(stdout, "---  SOURCE ---\n");
+  fprintf(stdout, "\x1b[30m---  SOURCE ---\x1b[94m\n");
   writeAll(stdout, data);
-  fprintf(stdout, "\n--- /SOURCE ---\n");
+  fprintf(stdout, "\n\x1b[30m--- /SOURCE ---\n");
 
-  fprintf(stdout, "---  TOKENS ---\n");
+  fprintf(stdout, "---  TOKENS ---\x1b[92m\n");
 
   TokenIterator it = tokenizer(data);
   Token t = nextToken(&it);
-
+  char nl = 0;
   while (t.type) {
     printToken(t);
     t = nextToken(&it);
+    if (t.type) {
+      if (++nl >= 4) {
+        nl = 0;
+        fprintf(stdout, "\n");
+      } else {
+        fprintf(stdout, "\x1b[30m,\t\x1b[92m");
+      }
+    }
   }
 
-  fprintf(stdout, "\n--- /TOKENS ---\n");
+  fprintf(stdout, "\n\x1b[30m--- /TOKENS ---\n");
 
-  fprintf(stdout, "---  PARSE ---\n");
+  fprintf(stdout, "---  PARSE ---\x1b[93m\n");
   resetTokenizer(&it);
 
   Program prog = parse(ally, &it);
@@ -76,21 +84,21 @@ int main(int argc, char **argv, char **envp) {
     printStatement(prog.statements.ptr[i]);
   }
 
-  fprintf(stdout, "--- /PARSE ---\n");
+  fprintf(stdout, "\x1b[30m--- /PARSE ---\n");
 
-  fprintf(stdout, "---  CODEGEN ---\n");
+  fprintf(stdout, "---  CODEGEN ---\x1b[95m\n");
 
   FILE *outputFile = fopen(argv[2], "w");
   outputBatch(prog, outputFile);
   fclose(outputFile);
+  fprintf(stdout, "\x1b[96mOutput Batch stored in %s\n", argv[2]);
+  fprintf(stdout, "\x1b[30m--- /CODEGEN ---\n");
 
-  fprintf(stdout, "--- /CODEGEN ---\n");
-
-  fprintf(stdout, "Memory usage: ");
+  fprintf(stdout, "\x1b[96mMemory usage: ");
   printSize(state.cur);
   fprintf(stdout, " / ");
   printSize(state.mem.len);
-  fprintf(stdout, "\n");
+  fprintf(stdout, "\x1b[0m\n");
 
   resizeAllocation(ally, char, &data, 0);
 

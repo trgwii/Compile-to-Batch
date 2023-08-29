@@ -47,31 +47,31 @@ typedef struct {
 static void printToken(Token t) {
   switch (t.type) {
   case TokenType_EOF: {
-    printf("(eof)\n");
+    printf("(eof)");
   } break;
   case TokenType_Ident: {
-    printf("Ident(%1.*s)\n", (int)t.ident.len, t.ident.ptr);
+    printf("Ident(%1.*s)", (int)t.ident.len, t.ident.ptr);
   } break;
   case TokenType_Number: {
-    printf("Number(%1.*s)\n", (int)t.number.len, t.number.ptr);
+    printf("Number(%1.*s)", (int)t.number.len, t.number.ptr);
   } break;
   case TokenType_OpenParen: {
-    printf("OpenParen\n");
+    printf("OpenParen");
   } break;
   case TokenType_CloseParen: {
-    printf("CloseParen\n");
+    printf("CloseParen");
   } break;
   case TokenType_Semi: {
-    printf("Semi\n");
+    printf("Semi");
   } break;
   case TokenType_Comma: {
-    printf("Comma\n");
+    printf("Comma");
   } break;
   case TokenType_String: {
-    printf("String(\"%1.*s\")\n", (int)t.string.len, t.string.ptr);
+    printf("String(\"%1.*s\")", (int)t.string.len, t.string.ptr);
   } break;
   case TokenType_Unknown: {
-    printf("(unknown:%d:%d: '%c')\n", (int)t.unknown.line, (int)t.unknown.col,
+    printf("(unknown:%d:%d: '%c')", (int)t.unknown.line, (int)t.unknown.col,
            t.unknown.c);
   } break;
   }
