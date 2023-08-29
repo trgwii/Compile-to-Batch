@@ -51,4 +51,8 @@ int main(int argc, char **argv) {
   }
   if (system(OUT " main.bb main.cmd"))
     exit(1);
+#ifdef _WIN32
+  if (system("cmd.exe /c main.cmd"))
+    exit(1);
+#endif
 }
