@@ -54,5 +54,8 @@ int main(int argc, char **argv) {
 #ifdef _WIN32
   if (system("cmd.exe /c main.cmd"))
     exit(1);
+#else
+  if (releaseMode(argc, argv))
+    system("ls -lh bin");
 #endif
 }

@@ -1,6 +1,7 @@
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 #include "parser/codegen.c"
 #include "parser/parser.c"
@@ -34,7 +35,7 @@ int main(int argc, char **argv, char **envp) {
   bool noColor = false;
   while (*envp) {
     char *str = *envp;
-    if (startsWith(str, "NO_COLOR="))
+    if (startsWith(str, "NO_COLOR=") && strlen(str) >= 10)
       noColor = true;
     envp++;
   }
