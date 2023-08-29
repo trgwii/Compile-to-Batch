@@ -50,11 +50,12 @@ static void outputBatch(Program prog, FILE *out) {
                   expr.call.callee->identifier.ptr);
           fprintf(stdout, "\n");
         }
+        fprintf(out, "@echo");
         for (size_t j = 0; j < expr.call.parameters_len; j++) {
-          fprintf(out, "@echo ");
+          fprintf(out, " ");
           emitExpression(expr.call.parameters[j], out);
-          fprintf(out, "\r\n");
         }
+        fprintf(out, "\r\n");
       } break;
       case IdentifierExpression:
       case NumericExpression:
