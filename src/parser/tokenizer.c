@@ -124,7 +124,7 @@ static Token nextToken(TokenIterator *it) {
   //   if (buf[i] == '\n' || buf[i] == '\r')
   //     buf[i] = ' ';
   // }
-  // fprintf(stdout, "\x1b[30m%1.*s\x1b[0m\n", (int)it->data.len, buf);
+  // fprintf(stdout, "\x1b[90m%1.*s\x1b[0m\n", (int)it->data.len, buf);
   // for (size_t i = 0; i < start_cur - 1; i++) {
   //   fprintf(stdout, " ");
   // }

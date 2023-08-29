@@ -52,9 +52,9 @@ int main(int argc, char **argv, char **envp) {
   }
   Slice(char) data = res.val;
 
-  fprintf(stdout, "\x1b[30m---  SOURCE ---\x1b[94m\n");
+  fprintf(stdout, "\x1b[90m---  SOURCE ---\x1b[94m\n");
   writeAll(stdout, data);
-  fprintf(stdout, "\n\x1b[30m--- /SOURCE ---\n");
+  fprintf(stdout, "\n\x1b[90m--- /SOURCE ---\n");
 
   fprintf(stdout, "---  TOKENS ---\x1b[92m\n");
 
@@ -69,12 +69,12 @@ int main(int argc, char **argv, char **envp) {
         nl = 0;
         fprintf(stdout, "\n");
       } else {
-        fprintf(stdout, "\x1b[30m,\t\x1b[92m");
+        fprintf(stdout, "\x1b[90m,\t\x1b[92m");
       }
     }
   }
 
-  fprintf(stdout, "\n\x1b[30m--- /TOKENS ---\n");
+  fprintf(stdout, "\n\x1b[90m--- /TOKENS ---\n");
 
   fprintf(stdout, "---  PARSE ---\x1b[93m\n");
   resetTokenizer(&it);
@@ -84,7 +84,7 @@ int main(int argc, char **argv, char **envp) {
     printStatement(prog.statements.ptr[i]);
   }
 
-  fprintf(stdout, "\x1b[30m--- /PARSE ---\n");
+  fprintf(stdout, "\x1b[90m--- /PARSE ---\n");
 
   fprintf(stdout, "---  CODEGEN ---\x1b[95m\n");
 
@@ -92,7 +92,7 @@ int main(int argc, char **argv, char **envp) {
   outputBatch(prog, outputFile);
   fclose(outputFile);
   fprintf(stdout, "\x1b[96mOutput Batch stored in %s\n", argv[2]);
-  fprintf(stdout, "\x1b[30m--- /CODEGEN ---\n");
+  fprintf(stdout, "\x1b[90m--- /CODEGEN ---\n");
 
   fprintf(stdout, "\x1b[96mMemory usage: ");
   printSize(state.cur);
