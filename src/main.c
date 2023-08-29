@@ -22,8 +22,29 @@ static void printSize(size_t bytes) {
   printf("%luB", bytes);
 }
 
+static bool startsWith(char *haystack, char *needle) {
+  while (*haystack && *needle) {
+    if (*haystack++ != *needle++)
+      return false;
+  }
+  return *needle == 0;
+}
+
 int main(int argc, char **argv, char **envp) {
-  (void)envp;
+  bool noColor = false;
+  while (*envp) {
+    char *str = *envp;
+    if (startsWith(str, "NO_COLOR="))
+      noColor = true;
+    envp++;
+  }
+  char *gray = noColor ? "" : "\x1b[90m";
+  char *green = noColor ? "" : "\x1b[92m";
+  char *yellow = noColor ? "" : "\x1b[93m";
+  char *blue = noColor ? "" : "\x1b[94m";
+  char *pink = noColor ? "" : "\x1b[95m";
+  char *cyan = noColor ? "" : "\x1b[96m";
+  char *reset = noColor ? "" : "\x1b[0m";
 
   if (argc < 3) {
     panic("usage: bc [inputfile.bb] [outputfile.cmd]");
@@ -52,11 +73,11 @@ int main(int argc, char **argv, char **envp) {
   }
   Slice(char) data = res.val;
 
-  fprintf(stdout, "\x1b[90m---  SOURCE ---\x1b[94m\n");
+  fprintf(stdout, "%s---  SOURCE ---%s\n", gray, blue);
   writeAll(stdout, data);
-  fprintf(stdout, "\n\x1b[90m--- /SOURCE ---\n");
+  fprintf(stdout, "\n%s--- /SOURCE ---\n", gray);
 
-  fprintf(stdout, "---  TOKENS ---\x1b[92m\n");
+  fprintf(stdout, "---  TOKENS ---%s\n", green);
 
   TokenIterator it = tokenizer(data);
   Token t = nextToken(&it);
@@ -69,14 +90,14 @@ int main(int argc, char **argv, char **envp) {
         nl = 0;
         fprintf(stdout, "\n");
       } else {
-        fprintf(stdout, "\x1b[90m,\t\x1b[92m");
+        fprintf(stdout, "%s,\t%s", gray, green);
       }
     }
   }
 
-  fprintf(stdout, "\n\x1b[90m--- /TOKENS ---\n");
+  fprintf(stdout, "\n%s--- /TOKENS ---\n", gray);
 
-  fprintf(stdout, "---  PARSE ---\x1b[93m\n");
+  fprintf(stdout, "---  PARSE ---%s\n", yellow);
   resetTokenizer(&it);
 
   Program prog = parse(ally, &it);
@@ -84,21 +105,21 @@ int main(int argc, char **argv, char **envp) {
     printStatement(prog.statements.ptr[i]);
   }
 
-  fprintf(stdout, "\x1b[90m--- /PARSE ---\n");
+  fprintf(stdout, "%s--- /PARSE ---\n", gray);
 
-  fprintf(stdout, "---  CODEGEN ---\x1b[95m\n");
+  fprintf(stdout, "---  CODEGEN ---%s\n", pink);
 
   FILE *outputFile = fopen(argv[2], "w");
   outputBatch(prog, outputFile);
   fclose(outputFile);
-  fprintf(stdout, "\x1b[96mOutput Batch stored in %s\n", argv[2]);
-  fprintf(stdout, "\x1b[90m--- /CODEGEN ---\n");
+  fprintf(stdout, "%sOutput Batch stored in %s\n", cyan, argv[2]);
+  fprintf(stdout, "%s--- /CODEGEN ---\n", gray);
 
-  fprintf(stdout, "\x1b[96mMemory usage: ");
+  fprintf(stdout, "%sMemory usage: ", cyan);
   printSize(state.cur);
   fprintf(stdout, " / ");
   printSize(state.mem.len);
-  fprintf(stdout, "\x1b[0m\n");
+  fprintf(stdout, "%s\n", reset);
 
   resizeAllocation(ally, char, &data, 0);
 
