@@ -17,6 +17,8 @@ baz = "World";
 
 qux = 42;
 
+quux :: 999;
+
 bar :: "Hello, World!";
 print(foo);
 

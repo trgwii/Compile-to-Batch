@@ -5,6 +5,7 @@
 
 typedef struct {
   Slice(char) name;
+  bool read;
   bool constant;
 } Binding;
 
@@ -27,6 +28,12 @@ static void analyzeExpression(Slice(Binding) names, Expression expr) {
       if (!eql(expr.identifier, (Slice_char){.ptr = "print", .len = 5})) {
         fprintf(stdout, "Referring to undeclared name: %1.*s\n",
                 (int)expr.identifier.len, expr.identifier.ptr);
+      }
+    } else {
+      for (size_t i = 0; i < names.len; i++) {
+        if (eql(names.ptr[i].name, expr.identifier)) {
+          names.ptr[i].read = true;
+        }
       }
     }
   } break;
@@ -58,7 +65,8 @@ static void analyze(Allocator ally, Program prog) {
       }
       analyzeExpression(names.slice, stmt.declaration.value);
       Binding binding = {.name = stmt.declaration.name,
-                         .constant = stmt.declaration.constant};
+                         .constant = stmt.declaration.constant,
+                         .read = false};
       if (!appendToVec(&names, Binding, &binding)) {
         panic("analyze: Failed to append to names");
       }
@@ -82,6 +90,14 @@ static void analyze(Allocator ally, Program prog) {
     case ExpressionStatement: {
       analyzeExpression(names.slice, stmt.expression);
     } break;
+    }
+  }
+  for (size_t i = 0; i < names.slice.len; i++) {
+    Binding b = names.slice.ptr[i];
+    if (!b.read) {
+      fprintf(stdout, "Unused %s: %1.*s\n",
+              b.constant ? "constant" : "variable", (int)b.name.len,
+              b.name.ptr);
     }
   }
 }

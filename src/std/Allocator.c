@@ -63,8 +63,15 @@ static void *bumpRealloc(void *ptr, size_t size, size_t old_size, void *state) {
     return NULL;
   }
   if (ptr != NULL && bump->mem.ptr + bump->cur - old_size != (char *)ptr) {
-    // TODO: moving resize
-    return NULL;
+    // moving resize
+    // printf("(moving resize %lu -> %lu)\n", old_size, size);
+    void *new_ptr = bumpRealloc(NULL, size, 0, state);
+    if (!new_ptr)
+      return NULL;
+    for (size_t i = 0; i < size; i++) {
+      ((char *)new_ptr)[i] = ((char *)ptr)[i];
+    }
+    return new_ptr;
   }
 
   size_t align = (8 - (((size_t)bump->mem.ptr + bump->cur) % 8)) % 8;
