@@ -53,12 +53,12 @@ int main(int argc, char **argv, char **envp) {
     panic("usage: bc [inputfile.bb] [outputfile.cmd]");
   }
 
-  char mem[16384];
+  char mem[65536];
   Bump state = {
       .mem =
           {
               .ptr = mem,
-              .len = 16384,
+              .len = 65536,
           },
       .cur = 0,
   };

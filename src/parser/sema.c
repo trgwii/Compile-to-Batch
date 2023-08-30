@@ -54,6 +54,7 @@ static void analyze(Allocator ally, Program prog) {
       if (nameListHasString(names.slice, stmt.declaration.name)) {
         fprintf(stdout, "Double declaration of: %1.*s\n",
                 (int)stmt.declaration.name.len, stmt.declaration.name.ptr);
+        continue;
       }
       analyzeExpression(names.slice, stmt.declaration.value);
       Binding binding = {.name = stmt.declaration.name,
