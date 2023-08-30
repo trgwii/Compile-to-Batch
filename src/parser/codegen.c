@@ -8,7 +8,8 @@ DefVec(char);
 DefResult(Vec_char);
 
 static void emitExpression(Expression expr, StatementType parent,
-                           Vec(Statement) * temporaries, Vec(char) * out) {
+                           Allocator ally, Vec(Statement) * temporaries,
+                           Vec(char) * out) {
   switch (expr.type) {
   case IdentifierExpression: {
     char perc = '%';
@@ -34,25 +35,35 @@ static void emitExpression(Expression expr, StatementType parent,
   } break;
   case ArithmeticExpression: {
     if (parent != DeclarationStatement && parent != AssignmentStatement) {
+      char temporary_string[128];
+      int temporary_string_len =
+          sprintf(temporary_string, "_tmp%lu_", temporaries->slice.len);
+      Result(Slice_char) tmp_str =
+          alloc(ally, char, (size_t)temporary_string_len);
+      if (!tmp_str.ok)
+        panic(tmp_str.err);
+      for (int i = 0; i < temporary_string_len; i++) {
+        tmp_str.val.ptr[i] = temporary_string[i];
+      }
       Statement temporary = {
           .type = DeclarationStatement,
-          .declaration = {.name = {.ptr = "_tmp_", .len = 5}, .value = expr},
+          .declaration = {.name = tmp_str.val, .value = expr},
       };
       append(temporaries, Statement, &temporary);
-      emitExpression((Expression){.type = IdentifierExpression,
-                                  .identifier = {.ptr = "_tmp_", .len = 5}},
-                     parent, temporaries, out);
+      emitExpression(
+          (Expression){.type = IdentifierExpression, .identifier = tmp_str.val},
+          parent, ally, temporaries, out);
     } else {
-      emitExpression(*expr.arithmetic.left, parent, temporaries, out);
+      emitExpression(*expr.arithmetic.left, parent, ally, temporaries, out);
       append(out, char, &expr.arithmetic.op);
-      emitExpression(*expr.arithmetic.right, parent, temporaries, out);
+      emitExpression(*expr.arithmetic.right, parent, ally, temporaries, out);
     }
   } break;
   }
 }
 
-static void emitStatement(Statement stmt, Vec(Statement) * temporaries,
-                          Vec(char) * out) {
+static void emitStatement(Statement stmt, Allocator ally,
+                          Vec(Statement) * temporaries, Vec(char) * out) {
   char quot = '"';
   char equal = '=';
   switch (stmt.type) {
@@ -64,8 +75,8 @@ static void emitStatement(Statement stmt, Vec(Statement) * temporaries,
     append(out, char, &quot);
     appendSlice(out, char, stmt.declaration.name);
     append(out, char, &equal);
-    emitExpression(stmt.declaration.value, DeclarationStatement, temporaries,
-                   out);
+    emitExpression(stmt.declaration.value, DeclarationStatement, ally,
+                   temporaries, out);
     appendManyCString(out, "\"\r\n");
   } break;
   case AssignmentStatement: {
@@ -76,8 +87,8 @@ static void emitStatement(Statement stmt, Vec(Statement) * temporaries,
     append(out, char, &quot);
     appendSlice(out, char, stmt.assignment.name);
     append(out, char, &equal);
-    emitExpression(stmt.assignment.value, AssignmentStatement, temporaries,
-                   out);
+    emitExpression(stmt.assignment.value, AssignmentStatement, ally,
+                   temporaries, out);
     appendManyCString(out, "\"\r\n");
   } break;
   case ExpressionStatement: {
@@ -98,7 +109,7 @@ static void emitStatement(Statement stmt, Vec(Statement) * temporaries,
       appendManyCString(out, "@echo");
       for (size_t j = 0; j < expr.call.parameters_len; j++) {
         appendManyCString(out, " ");
-        emitExpression(expr.call.parameters[j], ExpressionStatement,
+        emitExpression(expr.call.parameters[j], ExpressionStatement, ally,
                        temporaries, out);
       }
       appendManyCString(out, "\r\n");
@@ -131,11 +142,12 @@ static void outputBatch(Program prog, Allocator ally, Vec(char) * out) {
 
   for (size_t i = 0; i < prog.statements.len; i++) {
     Statement stmt = prog.statements.ptr[i];
-    emitStatement(stmt, &temporaries.val, &buffered.val);
+    emitStatement(stmt, ally, &temporaries.val, &buffered.val);
     // TODO: clear and print temporaries
     for (size_t j = 0; j < temporaries.val.slice.len; j++) {
-      emitStatement(temporaries.val.slice.ptr[j], NULL, out);
+      emitStatement(temporaries.val.slice.ptr[j], ally, NULL, out);
     }
+    temporaries.val.slice.len = 0;
     appendSlice(out, char, buffered.val.slice);
     buffered.val.slice.len = 0;
   }
