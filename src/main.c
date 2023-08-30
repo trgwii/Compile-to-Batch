@@ -116,8 +116,13 @@ int main(int argc, char **argv, char **envp) {
 
   fprintf(stdout, "---  CODEGEN ---%s\n", pink);
 
+  Result(Vec_char) outputVecRes = createVec(ally, char, 16384);
+  if (!outputVecRes.ok)
+    panic(outputVecRes.err);
+  Vec(char) outputVec = outputVecRes.val;
+  outputBatch(prog, ally, &outputVec);
   FILE *outputFile = fopen(argv[2], "w");
-  outputBatch(prog, outputFile);
+  writeAll(outputFile, outputVec.slice);
   fclose(outputFile);
   fprintf(stdout, "%sOutput Batch stored in %s:%s\n\n", cyan, argv[2], reset);
   Result(Slice_char) outputRes = readFile(ally, argv[2]);

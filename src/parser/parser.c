@@ -132,38 +132,38 @@ typedef struct {
   Slice(Statement) statements;
 } Program;
 
+// static Expression parseUnitExpression(Allocator ally, TokenIterator *it,
+//                                       Token t) {}
+
 static inline Expression parseExpression(Allocator ally, TokenIterator *it,
                                          Token t) {
   switch (t.type) {
   case TokenType_Number: {
     Token next = peekToken(it);
-    if (next.type == TokenType_Star || next.type == TokenType_Plus ||
-        next.type == TokenType_Hyphen || next.type == TokenType_Slash) {
-      nextToken(it); // op
-      Result(Slice_Expression) lr_res = alloc(ally, Expression, 2);
-      if (!lr_res.ok)
-        panic(lr_res.err);
-      Expression *left = &lr_res.val.ptr[0];
-      Expression *right = &lr_res.val.ptr[1];
-      *left = (Expression){
-          .type = NumericExpression,
-          .number = t.number,
-      };
-      *right = parseExpression(ally, it, nextToken(it));
-      return (Expression){
-          .type = ArithmeticExpression,
-          .arithmetic =
-              {
-                  .op = next.type == TokenType_Star     ? '*'
-                        : next.type == TokenType_Plus   ? '+'
-                        : next.type == TokenType_Hyphen ? '-'
-                                                        : '/',
-                  .left = left,
-                  .right = right,
-              },
-      };
+    if (next.type != TokenType_Star && next.type != TokenType_Plus &&
+        next.type != TokenType_Hyphen && next.type != TokenType_Slash) {
+      return (Expression){.type = NumericExpression, .number = t.number};
     }
-    return (Expression){.type = NumericExpression, .number = t.number};
+    nextToken(it); // op
+    Result(Slice_Expression) lr_res = alloc(ally, Expression, 2);
+    if (!lr_res.ok)
+      panic(lr_res.err);
+    Expression *left = &lr_res.val.ptr[0];
+    Expression *right = &lr_res.val.ptr[1];
+    *left = parseExpression(ally, it, t);
+    *right = parseExpression(ally, it, nextToken(it));
+    return (Expression){
+        .type = ArithmeticExpression,
+        .arithmetic =
+            {
+                .op = next.type == TokenType_Star     ? '*'
+                      : next.type == TokenType_Plus   ? '+'
+                      : next.type == TokenType_Hyphen ? '-'
+                                                      : '/',
+                .left = left,
+                .right = right,
+            },
+    };
   }
   case TokenType_String:
     return (Expression){.type = StringExpression, .string = t.string};
@@ -178,7 +178,7 @@ static inline Expression parseExpression(Allocator ally, TokenIterator *it,
       Expression *left = &lr_res.val.ptr[0];
       Expression *right = &lr_res.val.ptr[1];
       *left = (Expression){
-          .type = NumericExpression,
+          .type = IdentifierExpression,
           .number = t.number,
       };
       *right = parseExpression(ally, it, nextToken(it));
@@ -208,15 +208,14 @@ static inline Expression parseExpression(Allocator ally, TokenIterator *it,
         if (param.type == TokenType_EOF) {
           panic("parseExpression: Unclosed open paren");
         }
+        Expression expr = parseExpression(ally, it, param);
         Token paramSep = nextToken(it);
         if (paramSep.type != TokenType_Comma &&
             paramSep.type != TokenType_CloseParen) {
           panic("parseExpression: Parameter list expression not followed by "
                 "comma or close paren ^");
         }
-
-        Expression expr = parseExpression(ally, it, param);
-        if (!appendToVec(&parameters, Expression, &expr)) {
+        if (!append(&parameters, Expression, &expr)) {
           panic("Failed to append to parameter list");
         }
         if (paramSep.type == TokenType_CloseParen) {
@@ -291,7 +290,7 @@ static Program parse(Allocator ally, TokenIterator *it) {
                             .value = value,
                             .constant = afterColon.type == TokenType_Colon},
         };
-        if (!appendToVec(&statements, Statement, &decl_stmt)) {
+        if (!append(&statements, Statement, &decl_stmt)) {
           panic("Failed to append decl to statement list");
         }
       } else if (t.type == TokenType_Ident &&
@@ -303,7 +302,7 @@ static Program parse(Allocator ally, TokenIterator *it) {
             .type = AssignmentStatement,
             .assignment = {.name = t.ident, .value = value},
         };
-        if (!appendToVec(&statements, Statement, &assign_stmt)) {
+        if (!append(&statements, Statement, &assign_stmt)) {
           panic("Failed to append decl to statement list");
         }
 
@@ -312,7 +311,7 @@ static Program parse(Allocator ally, TokenIterator *it) {
             .type = ExpressionStatement,
             .expression = parseExpression(ally, it, t),
         };
-        if (!appendToVec(&statements, Statement, &s)) {
+        if (!append(&statements, Statement, &s)) {
           panic("Failed to append to statement list");
         }
       }

@@ -72,7 +72,7 @@ static void analyze(Allocator ally, Program prog) {
       Binding binding = {.name = stmt.declaration.name,
                          .constant = stmt.declaration.constant,
                          .read = false};
-      if (!appendToVec(&names, Binding, &binding)) {
+      if (!append(&names, Binding, &binding)) {
         panic("analyze: Failed to append to names");
       }
     } break;

@@ -33,3 +33,5 @@ y := 12 + 84;
 y = x * y;
 
 print(x, y);
+
+print(x + y);

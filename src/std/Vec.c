@@ -5,6 +5,7 @@
 #include "Result.h"
 #include "Slice.h"
 #include <stdbool.h>
+#include <string.h>
 
 #define Vec(T) Vec_##T
 
@@ -21,7 +22,7 @@ DefSlice(Slice_char);
 DefVec(Slice_char);
 DefResult(Vec_Slice_char);
 
-static bool appendToVec_(Vec(void) * v, size_t size, void *item) {
+static bool append_(Vec(void) * v, size_t size, void *item) {
   if (v->slice.len >= v->cap) {
     Slice(void) allocated = {
         .ptr = v->slice.ptr,
@@ -43,9 +44,26 @@ static bool appendToVec_(Vec(void) * v, size_t size, void *item) {
   return true;
 }
 
-#define appendToVec(v, T, item)                                                \
-  appendToVec_(cast(v, Vec(T) *, Vec(void) *), sizeof(T),                      \
-               cast(item, T *, void *))
+#define append(v, T, item)                                                     \
+  append_(cast(v, Vec(T) *, Vec(void) *), sizeof(T), cast(item, T *, void *))
+
+static bool appendMany_(Vec(void) * v, size_t size, void *items,
+                        size_t items_len) {
+  for (size_t i = 0; i < items_len; i++) {
+    if (!append_(v, size, (char *)items + (i * size))) {
+      return false;
+    }
+  }
+  return true;
+}
+
+#define appendMany(v, T, items, items_len)                                     \
+  appendMany_(cast(v, Vec(T) *, Vec(void) *), sizeof(T),                       \
+              cast(items, T *, void *), items_len)
+
+#define appendSlice(v, T, items) appendMany(v, T, items.ptr, items.len)
+
+#define appendManyCString(v, items) appendMany(v, char, items, strlen(items))
 
 static Result(Vec_void) createVec_(Allocator ally, size_t size, size_t cap) {
   Result(Slice_void) res = alloc_(ally, size, cap);
