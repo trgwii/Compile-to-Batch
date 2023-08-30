@@ -42,17 +42,17 @@ static void outputBatch(Program prog, FILE *out) {
     switch (stmt.type) {
     case DeclarationStatement: {
       char *attributes =
-          stmt.declaration.value.type == ArithmeticExpression ? "/a" : "";
-      fprintf(out, "@set %s \"%1.*s=", attributes,
+          stmt.declaration.value.type == ArithmeticExpression ? "/a " : "";
+      fprintf(out, "@set %s\"%1.*s=", attributes,
               (int)stmt.declaration.name.len, stmt.declaration.name.ptr);
       emitExpression(stmt.declaration.value, out);
       fprintf(out, "\"\r\n");
     } break;
     case AssignmentStatement: {
       char *attributes =
-          stmt.assignment.value.type == ArithmeticExpression ? "/a" : "";
-      fprintf(out, "@set %s \"%1.*s=", attributes,
-              (int)stmt.assignment.name.len, stmt.assignment.name.ptr);
+          stmt.assignment.value.type == ArithmeticExpression ? "/a " : "";
+      fprintf(out, "@set %s\"%1.*s=", attributes, (int)stmt.assignment.name.len,
+              stmt.assignment.name.ptr);
       emitExpression(stmt.assignment.value, out);
       fprintf(out, "\"\r\n");
     } break;

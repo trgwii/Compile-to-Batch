@@ -25,3 +25,11 @@ print(foo);
 print(bar);
 
 math :: 42 + 84 * 300;
+
+x := 42;
+
+y := 12 + 84;
+
+y = x * y;
+
+print(x, y);

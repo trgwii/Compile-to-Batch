@@ -139,7 +139,7 @@ static inline Expression parseExpression(Allocator ally, TokenIterator *it,
     Token next = peekToken(it);
     if (next.type == TokenType_Star || next.type == TokenType_Plus ||
         next.type == TokenType_Hyphen || next.type == TokenType_Slash) {
-      nextToken(it);
+      nextToken(it); // op
       Result(Slice_Expression) lr_res = alloc(ally, Expression, 2);
       if (!lr_res.ok)
         panic(lr_res.err);
@@ -169,6 +169,32 @@ static inline Expression parseExpression(Allocator ally, TokenIterator *it,
     return (Expression){.type = StringExpression, .string = t.string};
   case TokenType_Ident: {
     Token next = peekToken(it);
+    if (next.type == TokenType_Star || next.type == TokenType_Plus ||
+        next.type == TokenType_Hyphen || next.type == TokenType_Slash) {
+      nextToken(it); // op
+      Result(Slice_Expression) lr_res = alloc(ally, Expression, 2);
+      if (!lr_res.ok)
+        panic(lr_res.err);
+      Expression *left = &lr_res.val.ptr[0];
+      Expression *right = &lr_res.val.ptr[1];
+      *left = (Expression){
+          .type = NumericExpression,
+          .number = t.number,
+      };
+      *right = parseExpression(ally, it, nextToken(it));
+      return (Expression){
+          .type = ArithmeticExpression,
+          .arithmetic =
+              {
+                  .op = next.type == TokenType_Star     ? '*'
+                        : next.type == TokenType_Plus   ? '+'
+                        : next.type == TokenType_Hyphen ? '-'
+                                                        : '/',
+                  .left = left,
+                  .right = right,
+              },
+      };
+    }
     if (next.type == TokenType_OpenParen) {
       // call expression
       nextToken(it);
