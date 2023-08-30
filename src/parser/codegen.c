@@ -35,6 +35,12 @@ static void outputBatch(Program prog, FILE *out) {
   for (size_t i = 0; i < prog.statements.len; i++) {
     Statement stmt = prog.statements.ptr[i];
     switch (stmt.type) {
+    case DeclarationStatement: {
+      fprintf(out, "@set \"%1.*s=", (int)stmt.declaration.name.len,
+              stmt.declaration.name.ptr);
+      emitExpression(stmt.declaration.value, out);
+      fprintf(out, "\"\r\n");
+    } break;
     case ExpressionStatement: {
       Expression expr = stmt.expression;
       switch (expr.type) {

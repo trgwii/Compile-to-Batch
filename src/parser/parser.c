@@ -31,14 +31,21 @@ DefResult(Slice_Expression);
 DefVec(Expression);
 DefResult(Vec_Expression);
 
+typedef struct {
+  Slice(char) name;
+  Expression value;
+} Declaration;
+
 typedef enum {
   ExpressionStatement,
+  DeclarationStatement,
 } StatementType;
 
 typedef struct {
   StatementType type;
   union {
     Expression expression;
+    Declaration declaration;
   };
 } Statement;
 
@@ -81,6 +88,12 @@ static void printStatement(Statement stmt) {
   case ExpressionStatement: {
     Expression expr = stmt.expression;
     printExpression(expr);
+    fprintf(stdout, "\n");
+  } break;
+  case DeclarationStatement: {
+    Declaration decl = stmt.declaration;
+    fprintf(stdout, "%1.*s := ", (int)decl.name.len, decl.name.ptr);
+    printExpression(decl.value);
     fprintf(stdout, "\n");
   } break;
   }
@@ -153,6 +166,8 @@ static inline Expression parseExpression(Allocator ally, TokenIterator *it,
   case TokenType_CloseParen:
   case TokenType_Semi:
   case TokenType_Comma:
+  case TokenType_Colon:
+  case TokenType_Equal:
   case TokenType_Unknown: {
     printToken(t);
     panic("\nparseExpression: Invalid TokenType ^");
@@ -172,12 +187,30 @@ static Program parse(Allocator ally, TokenIterator *it) {
 
     if (t.type == TokenType_Ident || t.type == TokenType_Number ||
         t.type == TokenType_String) {
-      Statement s = {
-          .type = ExpressionStatement,
-          .expression = parseExpression(ally, it, t),
-      };
-      if (!appendToVec(&statements, Statement, &s)) {
-        panic("Failed to append to statement list");
+      if (t.type == TokenType_Ident && peekToken(it).type == TokenType_Colon) {
+        nextToken(it); // :
+        if (peekToken(it).type != TokenType_Equal) {
+          printToken(peekToken(it));
+          panic("Invalid token following colon ^");
+        }
+        nextToken(it); // =
+        Expression value = parseExpression(ally, it, nextToken(it));
+
+        Statement decl_stmt = {
+            .type = DeclarationStatement,
+            .declaration = {.name = t.ident, .value = value},
+        };
+        if (!appendToVec(&statements, Statement, &decl_stmt)) {
+          panic("Failed to append decl to statement list");
+        }
+      } else {
+        Statement s = {
+            .type = ExpressionStatement,
+            .expression = parseExpression(ally, it, t),
+        };
+        if (!appendToVec(&statements, Statement, &s)) {
+          panic("Failed to append to statement list");
+        }
       }
       Token semi = nextToken(it);
       if (semi.type != TokenType_Semi) {

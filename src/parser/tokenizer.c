@@ -27,6 +27,8 @@ typedef enum {
   TokenType_Semi,
   TokenType_Comma,
   TokenType_String,
+  TokenType_Colon,
+  TokenType_Equal,
   TokenType_Unknown,
 } TokenType;
 
@@ -69,6 +71,12 @@ static void printToken(Token t) {
   } break;
   case TokenType_String: {
     printf("String(\"%1.*s\")", (int)t.string.len, t.string.ptr);
+  } break;
+  case TokenType_Colon: {
+    printf("Colon");
+  } break;
+  case TokenType_Equal: {
+    printf("Equal");
   } break;
   case TokenType_Unknown: {
     printf("(unknown:%d:%d: '%c')", (int)t.unknown.line, (int)t.unknown.col,
@@ -139,6 +147,10 @@ static Token nextToken(TokenIterator *it) {
     return (Token){.type = TokenType_Semi};
   case ',':
     return (Token){.type = TokenType_Comma};
+  case ':':
+    return (Token){.type = TokenType_Colon};
+  case '=':
+    return (Token){.type = TokenType_Equal};
   }
 
   // keywords / identifiers

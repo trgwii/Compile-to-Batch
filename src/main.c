@@ -113,7 +113,13 @@ int main(int argc, char **argv, char **envp) {
   FILE *outputFile = fopen(argv[2], "w");
   outputBatch(prog, outputFile);
   fclose(outputFile);
-  fprintf(stdout, "%sOutput Batch stored in %s\n", cyan, argv[2]);
+  fprintf(stdout, "%sOutput Batch stored in %s:%s\n\n", cyan, argv[2], reset);
+  Result(Slice_char) outputRes = readFile(ally, argv[2]);
+  if (!outputRes.ok) {
+    panic(outputRes.err);
+  }
+  Slice(char) outputData = outputRes.val;
+  fprintf(stdout, "%1.*s\n", (int)outputData.len, outputData.ptr);
   fprintf(stdout, "%s--- /CODEGEN ---\n", gray);
 
   fprintf(stdout, "%sMemory usage: ", cyan);
