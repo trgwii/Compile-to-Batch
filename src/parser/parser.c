@@ -34,6 +34,7 @@ DefResult(Vec_Expression);
 typedef struct {
   Slice(char) name;
   Expression value;
+  bool constant;
 } Declaration;
 
 typedef enum {
@@ -92,7 +93,8 @@ static void printStatement(Statement stmt) {
   } break;
   case DeclarationStatement: {
     Declaration decl = stmt.declaration;
-    fprintf(stdout, "%1.*s := ", (int)decl.name.len, decl.name.ptr);
+    fprintf(stdout, "%1.*s :%c ", (int)decl.name.len, decl.name.ptr,
+            decl.constant ? ':' : '=');
     printExpression(decl.value);
     fprintf(stdout, "\n");
   } break;
@@ -189,7 +191,9 @@ static Program parse(Allocator ally, TokenIterator *it) {
         t.type == TokenType_String) {
       if (t.type == TokenType_Ident && peekToken(it).type == TokenType_Colon) {
         nextToken(it); // :
-        if (peekToken(it).type != TokenType_Equal) {
+        Token afterColon = peekToken(it);
+        if (afterColon.type != TokenType_Equal &&
+            afterColon.type != TokenType_Colon) {
           printToken(peekToken(it));
           panic("Invalid token following colon ^");
         }
@@ -198,7 +202,9 @@ static Program parse(Allocator ally, TokenIterator *it) {
 
         Statement decl_stmt = {
             .type = DeclarationStatement,
-            .declaration = {.name = t.ident, .value = value},
+            .declaration = {.name = t.ident,
+                            .value = value,
+                            .constant = afterColon.type == TokenType_Colon},
         };
         if (!appendToVec(&statements, Statement, &decl_stmt)) {
           panic("Failed to append decl to statement list");

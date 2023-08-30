@@ -17,6 +17,9 @@
 
 DefVec(void);
 DefResult(Vec_void);
+DefSlice(Slice_char);
+DefVec(Slice_char);
+DefResult(Vec_Slice_char);
 
 static bool appendToVec_(Vec(void) * v, size_t size, void *item) {
   if (v->slice.len >= v->cap) {

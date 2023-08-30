@@ -5,6 +5,7 @@
 
 #include "parser/codegen.c"
 #include "parser/parser.c"
+#include "parser/sema.c"
 #include "parser/tokenizer.c"
 #include "std/Allocator.c"
 #include "std/panic.c"
@@ -40,6 +41,7 @@ int main(int argc, char **argv, char **envp) {
     envp++;
   }
   char *gray = noColor ? "" : "\x1b[90m";
+  char *red = noColor ? "" : "\x1b[91m";
   char *green = noColor ? "" : "\x1b[92m";
   char *yellow = noColor ? "" : "\x1b[93m";
   char *blue = noColor ? "" : "\x1b[94m";
@@ -107,6 +109,10 @@ int main(int argc, char **argv, char **envp) {
   }
 
   fprintf(stdout, "%s--- /PARSE ---\n", gray);
+
+  fprintf(stdout, "---  ANALYZE ---%s\n", red);
+  analyze(ally, prog);
+  fprintf(stdout, "%s--- /ANALYZE ---\n", gray);
 
   fprintf(stdout, "---  CODEGEN ---%s\n", pink);
 
