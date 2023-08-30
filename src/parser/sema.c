@@ -3,18 +3,27 @@
 #include "parser.c"
 #include <stdbool.h>
 
-static bool listHasString(Slice(Slice_char) list, Slice(char) string) {
+typedef struct {
+  Slice(char) name;
+  bool constant;
+} Binding;
+
+DefSlice(Binding);
+DefVec(Binding);
+DefResult(Vec_Binding);
+
+static bool nameListHasString(Slice(Binding) list, Slice(char) string) {
   for (size_t i = 0; i < list.len; i++) {
-    if (eql(list.ptr[i], string))
+    if (eql(list.ptr[i].name, string))
       return true;
   }
   return false;
 }
 
-static void analyzeExpression(Slice(Slice_char) names, Expression expr) {
+static void analyzeExpression(Slice(Binding) names, Expression expr) {
   switch (expr.type) {
   case IdentifierExpression: {
-    if (!listHasString(names, expr.identifier)) {
+    if (!nameListHasString(names, expr.identifier)) {
       if (!eql(expr.identifier, (Slice_char){.ptr = "print", .len = 5})) {
         fprintf(stdout, "Referring to undeclared name: %1.*s\n",
                 (int)expr.identifier.len, expr.identifier.ptr);
@@ -34,22 +43,40 @@ static void analyzeExpression(Slice(Slice_char) names, Expression expr) {
 }
 
 static void analyze(Allocator ally, Program prog) {
-  Result(Vec_Slice_char) names_res = createVec(ally, Slice_char, 16);
+  Result(Vec_Binding) names_res = createVec(ally, Binding, 16);
   if (!names_res.ok)
     panic(names_res.err);
-  Vec(Slice_char) names = names_res.val;
+  Vec(Binding) names = names_res.val;
   for (size_t i = 0; i < prog.statements.len; i++) {
     Statement stmt = prog.statements.ptr[i];
     switch (stmt.type) {
     case DeclarationStatement: {
-      if (listHasString(names.slice, stmt.declaration.name)) {
+      if (nameListHasString(names.slice, stmt.declaration.name)) {
         fprintf(stdout, "Double declaration of: %1.*s\n",
                 (int)stmt.declaration.name.len, stmt.declaration.name.ptr);
       }
-      if (!appendToVec(&names, Slice_char, &stmt.declaration.name)) {
+      analyzeExpression(names.slice, stmt.declaration.value);
+      Binding binding = {.name = stmt.declaration.name,
+                         .constant = stmt.declaration.constant};
+      if (!appendToVec(&names, Binding, &binding)) {
         panic("analyze: Failed to append to names");
       }
-      // TODO: check that assignments don't assign to constants
+    } break;
+    case AssignmentStatement: {
+      if (!nameListHasString(names.slice, stmt.assignment.name)) {
+        fprintf(stdout, "Assignment to undeclared name: %1.*s\n",
+                (int)stmt.assignment.name.len, stmt.assignment.name.ptr);
+      } else {
+        for (size_t j = 0; j < names.slice.len; j++) {
+          if (eql(names.slice.ptr[j].name, stmt.assignment.name)) {
+            if (names.slice.ptr[j].constant) {
+              fprintf(stdout, "Assignment to constant: %1.*s\n",
+                      (int)stmt.assignment.name.len, stmt.assignment.name.ptr);
+            }
+          }
+        }
+      }
+      analyzeExpression(names.slice, stmt.assignment.value);
     } break;
     case ExpressionStatement: {
       analyzeExpression(names.slice, stmt.expression);

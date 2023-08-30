@@ -37,9 +37,15 @@ typedef struct {
   bool constant;
 } Declaration;
 
+typedef struct {
+  Slice(char) name;
+  Expression value;
+} Assignment;
+
 typedef enum {
   ExpressionStatement,
   DeclarationStatement,
+  AssignmentStatement,
 } StatementType;
 
 typedef struct {
@@ -47,6 +53,7 @@ typedef struct {
   union {
     Expression expression;
     Declaration declaration;
+    Assignment assignment;
   };
 } Statement;
 
@@ -96,6 +103,12 @@ static void printStatement(Statement stmt) {
     fprintf(stdout, "%1.*s :%c ", (int)decl.name.len, decl.name.ptr,
             decl.constant ? ':' : '=');
     printExpression(decl.value);
+    fprintf(stdout, "\n");
+  } break;
+  case AssignmentStatement: {
+    Assignment assign = stmt.assignment;
+    fprintf(stdout, "%1.*s = ", (int)assign.name.len, assign.name.ptr);
+    printExpression(assign.value);
     fprintf(stdout, "\n");
   } break;
   }
@@ -209,6 +222,19 @@ static Program parse(Allocator ally, TokenIterator *it) {
         if (!appendToVec(&statements, Statement, &decl_stmt)) {
           panic("Failed to append decl to statement list");
         }
+      } else if (t.type == TokenType_Ident &&
+                 peekToken(it).type == TokenType_Equal) {
+        nextToken(it);
+        Expression value = parseExpression(ally, it, nextToken(it));
+
+        Statement assign_stmt = {
+            .type = AssignmentStatement,
+            .assignment = {.name = t.ident, .value = value},
+        };
+        if (!appendToVec(&statements, Statement, &assign_stmt)) {
+          panic("Failed to append decl to statement list");
+        }
+
       } else {
         Statement s = {
             .type = ExpressionStatement,

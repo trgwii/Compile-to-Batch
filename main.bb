@@ -9,6 +9,14 @@ foo := 42;
 
 foo :: 84;
 
+foo = 12;
+
+baz := "Hello";
+
+baz = "World";
+
+qux = 42;
+
 bar :: "Hello, World!";
 print(foo);
 

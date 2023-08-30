@@ -41,6 +41,12 @@ static void outputBatch(Program prog, FILE *out) {
       emitExpression(stmt.declaration.value, out);
       fprintf(out, "\"\r\n");
     } break;
+    case AssignmentStatement: {
+      fprintf(out, "@set \"%1.*s=", (int)stmt.assignment.name.len,
+              stmt.assignment.name.ptr);
+      emitExpression(stmt.assignment.value, out);
+      fprintf(out, "\"\r\n");
+    } break;
     case ExpressionStatement: {
       Expression expr = stmt.expression;
       switch (expr.type) {
