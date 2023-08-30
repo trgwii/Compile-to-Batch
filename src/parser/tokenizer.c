@@ -29,6 +29,10 @@ typedef enum {
   TokenType_String,
   TokenType_Colon,
   TokenType_Equal,
+  TokenType_Star,
+  TokenType_Plus,
+  TokenType_Hyphen,
+  TokenType_Slash,
   TokenType_Unknown,
 } TokenType;
 
@@ -77,6 +81,18 @@ static void printToken(Token t) {
   } break;
   case TokenType_Equal: {
     printf("Equal");
+  } break;
+  case TokenType_Star: {
+    printf("Star");
+  } break;
+  case TokenType_Plus: {
+    printf("Plus");
+  } break;
+  case TokenType_Hyphen: {
+    printf("Hyphen");
+  } break;
+  case TokenType_Slash: {
+    printf("Slash");
   } break;
   case TokenType_Unknown: {
     printf("(unknown:%d:%d: '%c')", (int)t.unknown.line, (int)t.unknown.col,
@@ -151,6 +167,14 @@ static Token nextToken(TokenIterator *it) {
     return (Token){.type = TokenType_Colon};
   case '=':
     return (Token){.type = TokenType_Equal};
+  case '*':
+    return (Token){.type = TokenType_Star};
+  case '+':
+    return (Token){.type = TokenType_Plus};
+  case '-':
+    return (Token){.type = TokenType_Hyphen};
+  case '/':
+    return (Token){.type = TokenType_Slash};
   }
 
   // keywords / identifiers

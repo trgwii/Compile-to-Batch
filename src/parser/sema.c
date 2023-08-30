@@ -43,8 +43,13 @@ static void analyzeExpression(Slice(Binding) names, Expression expr) {
       analyzeExpression(names, expr.call.parameters[i]);
     }
   } break;
+  case ArithmeticExpression: {
+    analyzeExpression(names, *expr.arithmetic.left);
+    analyzeExpression(names, *expr.arithmetic.right);
+  } break;
   case NumericExpression:
   case StringExpression: {
+    // no-op
   }
   }
 }

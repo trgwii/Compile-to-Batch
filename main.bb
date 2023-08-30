@@ -24,3 +24,4 @@ print(foo);
 
 print(bar);
 
+math :: 42 + 84 * 300;

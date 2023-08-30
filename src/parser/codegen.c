@@ -25,6 +25,11 @@ static void emitExpression(Expression expr, FILE *out) {
   case CallExpression: {
     fprintf(stdout, "Skipped emitting expression\n");
   } break;
+  case ArithmeticExpression: {
+    emitExpression(*expr.arithmetic.left, out);
+    fprintf(out, "%c", expr.arithmetic.op);
+    emitExpression(*expr.arithmetic.right, out);
+  } break;
   }
 }
 
@@ -36,14 +41,18 @@ static void outputBatch(Program prog, FILE *out) {
     Statement stmt = prog.statements.ptr[i];
     switch (stmt.type) {
     case DeclarationStatement: {
-      fprintf(out, "@set \"%1.*s=", (int)stmt.declaration.name.len,
-              stmt.declaration.name.ptr);
+      char *attributes =
+          stmt.declaration.value.type == ArithmeticExpression ? "/a" : "";
+      fprintf(out, "@set %s \"%1.*s=", attributes,
+              (int)stmt.declaration.name.len, stmt.declaration.name.ptr);
       emitExpression(stmt.declaration.value, out);
       fprintf(out, "\"\r\n");
     } break;
     case AssignmentStatement: {
-      fprintf(out, "@set \"%1.*s=", (int)stmt.assignment.name.len,
-              stmt.assignment.name.ptr);
+      char *attributes =
+          stmt.assignment.value.type == ArithmeticExpression ? "/a" : "";
+      fprintf(out, "@set %s \"%1.*s=", attributes,
+              (int)stmt.assignment.name.len, stmt.assignment.name.ptr);
       emitExpression(stmt.assignment.value, out);
       fprintf(out, "\"\r\n");
     } break;
@@ -71,6 +80,7 @@ static void outputBatch(Program prog, FILE *out) {
       } break;
       case IdentifierExpression:
       case NumericExpression:
+      case ArithmeticExpression:
       case StringExpression: {
         fprintf(stdout, "Skipped unknown expression: ");
         fprintf(stdout, "%1.*s", (int)expr.string.len, expr.string.ptr);

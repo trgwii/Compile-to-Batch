@@ -10,6 +10,7 @@ typedef enum {
   IdentifierExpression,
   NumericExpression,
   StringExpression,
+  ArithmeticExpression,
 } ExpressionType;
 
 typedef struct Expression {
@@ -23,6 +24,11 @@ typedef struct Expression {
     Slice(char) number;
     Slice(char) string;
     Slice(char) identifier;
+    struct {
+      char op;
+      struct Expression *left;
+      struct Expression *right;
+    } arithmetic;
   };
 } Expression;
 
@@ -88,6 +94,14 @@ static void printExpression(Expression expr) {
   case StringExpression: {
     fprintf(stdout, "String(\"%1.*s\")", (int)expr.string.len, expr.string.ptr);
   } break;
+  case ArithmeticExpression: {
+
+    fprintf(stdout, "Arith(");
+    printExpression(*expr.arithmetic.left);
+    fprintf(stdout, " %c ", expr.arithmetic.op);
+    printExpression(*expr.arithmetic.right);
+    fprintf(stdout, ")");
+  } break;
   }
 }
 
@@ -121,8 +135,36 @@ typedef struct {
 static inline Expression parseExpression(Allocator ally, TokenIterator *it,
                                          Token t) {
   switch (t.type) {
-  case TokenType_Number:
+  case TokenType_Number: {
+    Token next = peekToken(it);
+    if (next.type == TokenType_Star || next.type == TokenType_Plus ||
+        next.type == TokenType_Hyphen || next.type == TokenType_Slash) {
+      nextToken(it);
+      Result(Slice_Expression) lr_res = alloc(ally, Expression, 2);
+      if (!lr_res.ok)
+        panic(lr_res.err);
+      Expression *left = &lr_res.val.ptr[0];
+      Expression *right = &lr_res.val.ptr[1];
+      *left = (Expression){
+          .type = NumericExpression,
+          .number = t.number,
+      };
+      *right = parseExpression(ally, it, nextToken(it));
+      return (Expression){
+          .type = ArithmeticExpression,
+          .arithmetic =
+              {
+                  .op = next.type == TokenType_Star     ? '*'
+                        : next.type == TokenType_Plus   ? '+'
+                        : next.type == TokenType_Hyphen ? '-'
+                                                        : '/',
+                  .left = left,
+                  .right = right,
+              },
+      };
+    }
     return (Expression){.type = NumericExpression, .number = t.number};
+  }
   case TokenType_String:
     return (Expression){.type = StringExpression, .string = t.string};
   case TokenType_Ident: {
@@ -183,6 +225,10 @@ static inline Expression parseExpression(Allocator ally, TokenIterator *it,
   case TokenType_Comma:
   case TokenType_Colon:
   case TokenType_Equal:
+  case TokenType_Star:
+  case TokenType_Plus:
+  case TokenType_Hyphen:
+  case TokenType_Slash:
   case TokenType_Unknown: {
     printToken(t);
     panic("\nparseExpression: Invalid TokenType ^");
