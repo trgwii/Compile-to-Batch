@@ -198,7 +198,7 @@ static inline Expression parseExpression(Allocator ally, TokenIterator *it,
     if (next.type == TokenType_OpenParen) {
       // call expression
       nextToken(it);
-      Result(Vec_Expression) res = createVec(ally, Expression, 16);
+      Result(Vec_Expression) res = createVec(ally, Expression, 1);
       if (!res.ok) {
         panic(res.err);
       }

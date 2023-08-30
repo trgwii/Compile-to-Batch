@@ -55,7 +55,7 @@ static void analyzeExpression(Slice(Binding) names, Expression expr) {
 }
 
 static void analyze(Allocator ally, Program prog) {
-  Result(Vec_Binding) names_res = createVec(ally, Binding, 16);
+  Result(Vec_Binding) names_res = createVec(ally, Binding, 4);
   if (!names_res.ok)
     panic(names_res.err);
   Vec(Binding) names = names_res.val;

@@ -116,7 +116,7 @@ int main(int argc, char **argv, char **envp) {
 
   fprintf(stdout, "---  CODEGEN ---%s\n", pink);
 
-  Result(Vec_char) outputVecRes = createVec(ally, char, 16384);
+  Result(Vec_char) outputVecRes = createVec(ally, char, 512);
   if (!outputVecRes.ok)
     panic(outputVecRes.err);
   Vec(char) outputVec = outputVecRes.val;

@@ -121,11 +121,11 @@ static void outputBatch(Program prog, Allocator ally, Vec(char) * out) {
   appendManyCString(out, "@setlocal EnableDelayedExpansion\r\n");
   appendManyCString(out, "@pushd \"%~dp0\"\r\n\r\n");
 
-  Result(Vec_Statement) temporaries = createVec(ally, Statement, 2);
+  Result(Vec_Statement) temporaries = createVec(ally, Statement, 1);
   if (!temporaries.ok)
     panic(temporaries.err);
 
-  Result(Vec_char) buffered = createVec(ally, char, 64);
+  Result(Vec_char) buffered = createVec(ally, char, 32);
   if (!buffered.ok)
     panic(buffered.err);
 

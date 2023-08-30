@@ -35,3 +35,7 @@ y = x * y;
 print(x, y);
 
 print(x + y);
+
+foo :: 42 + 84;
+bar :: 42 * foo + 18;
+print(bar - foo);
