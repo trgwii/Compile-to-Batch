@@ -132,7 +132,8 @@ static void emitStatement(Statement stmt, Allocator ally,
   switch (stmt.type) {
   case DeclarationStatement: {
     appendManyCString(out, "@set ");
-    if (stmt.declaration.value.type == ArithmeticExpression) {
+    if (stmt.declaration.value.type == ArithmeticExpression &&
+        stmt.declaration.value.arithmetic.op != '=') {
       appendManyCString(out, "/a ");
     }
     append(out, char, &quot);
