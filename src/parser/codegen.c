@@ -62,6 +62,17 @@ static void emitExpression(Expression expr, StatementType parent,
   }
 }
 
+static Slice(char) trim(Slice(char) str) {
+  while (isblank(str.ptr[0]) || isspace(str.ptr[0])) {
+    str.ptr++;
+    str.len--;
+  }
+  while (isblank(str.ptr[str.len - 1]) || isspace(str.ptr[str.len - 1])) {
+    str.len--;
+  }
+  return str;
+}
+
 static void emitStatement(Statement stmt, Allocator ally,
                           Vec(Statement) * temporaries, Vec(char) * out) {
   char quot = '"';
@@ -92,7 +103,9 @@ static void emitStatement(Statement stmt, Allocator ally,
     appendManyCString(out, "\"\r\n");
   } break;
   case InlineBatchStatement: {
-    appendSlice(out, char, stmt.inline_batch);
+    // appendManyCString(out, "\r\n");
+    appendSlice(out, char, trim(stmt.inline_batch));
+    appendManyCString(out, "\r\n");
   } break;
   case ExpressionStatement: {
     Expression expr = stmt.expression;

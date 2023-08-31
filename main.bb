@@ -53,4 +53,4 @@ batch {{
 
 p :: print;
 
-
+batch{echo %RANDOM%}

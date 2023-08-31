@@ -133,7 +133,7 @@ static char nextChar(TokenIterator *it) {
 }
 
 static char skipWhitespace(TokenIterator *it, char c) {
-  while (isblank(c) || c == '\n') {
+  while (isblank(c) || isspace(c)) {
     if (tokenizerEnded(it)) {
       return 0;
     }
@@ -208,6 +208,7 @@ static Token nextToken(TokenIterator *it) {
     };
 
     if (eql(ident, (Slice(char)){.ptr = "batch", .len = 5})) {
+      it->cur++;
       c = skipWhitespace(it, c);
       if (c == 0) {
         return (Token){.type = TokenType_EOF};
@@ -223,18 +224,18 @@ static Token nextToken(TokenIterator *it) {
         }
         bracket_len += 1;
       }
-      size_t body_start = it->cur;
+      size_t body_start = it->cur - 1;
       while (true) {
         c = nextChar(it);
         if (tokenizerEnded(it)) {
-          panic("Unclosed batch statement");
+          panic("Unclosed batch statement (1)");
         }
         if (c == '}') {
           bool ended = true;
           for (size_t i = 0; i < bracket_len - 1; i++) {
             c = nextChar(it);
             if (tokenizerEnded(it)) {
-              panic("Unclosed batch statement");
+              panic("Unclosed batch statement (2)");
             }
             if (c != '}') {
               ended = false;
