@@ -91,6 +91,9 @@ static void emitStatement(Statement stmt, Allocator ally,
                    temporaries, out);
     appendManyCString(out, "\"\r\n");
   } break;
+  case InlineBatchStatement: {
+    appendSlice(out, char, stmt.inline_batch);
+  } break;
   case ExpressionStatement: {
     Expression expr = stmt.expression;
     switch (expr.type) {

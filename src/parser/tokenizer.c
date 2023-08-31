@@ -2,6 +2,7 @@
 #define TOKENIZER_H
 
 #include "../std/defs.h"
+#include "../std/eql.c"
 #include "../std/panic.c"
 #include <ctype.h>
 #include <stdbool.h>
@@ -33,6 +34,7 @@ typedef enum {
   TokenType_Plus,
   TokenType_Hyphen,
   TokenType_Slash,
+  TokenType_InlineBatch,
   TokenType_Unknown,
 } TokenType;
 
@@ -42,6 +44,7 @@ typedef struct {
     Slice(char) ident;
     Slice(char) number;
     Slice(char) string;
+    Slice(char) inline_batch;
     struct {
       size_t line;
       size_t col;
@@ -94,6 +97,9 @@ static void printToken(Token t) {
   case TokenType_Slash: {
     printf("Slash");
   } break;
+  case TokenType_InlineBatch: {
+    printf("Batch {%1.*s}", (int)t.inline_batch.len, t.inline_batch.ptr);
+  } break;
   case TokenType_Unknown: {
     printf("(unknown:%d:%d: '%c')", (int)t.unknown.line, (int)t.unknown.col,
            t.unknown.c);
@@ -126,6 +132,16 @@ static char nextChar(TokenIterator *it) {
   return c;
 }
 
+static char skipWhitespace(TokenIterator *it, char c) {
+  while (isblank(c) || c == '\n') {
+    if (tokenizerEnded(it)) {
+      return 0;
+    }
+    c = nextChar(it);
+  }
+  return c;
+}
+
 static Token nextToken(TokenIterator *it) {
   if (tokenizerEnded(it)) {
     return (Token){.type = TokenType_EOF};
@@ -133,11 +149,9 @@ static Token nextToken(TokenIterator *it) {
   char c = nextChar(it);
 
   // skip whitespace
-  while (isblank(c) || c == '\n') {
-    if (tokenizerEnded(it)) {
-      return (Token){.type = TokenType_EOF};
-    }
-    c = nextChar(it);
+  c = skipWhitespace(it, c);
+  if (c == 0) {
+    return (Token){.type = TokenType_EOF};
   }
 
   // size_t start_cur = it->cur;
@@ -188,11 +202,59 @@ static Token nextToken(TokenIterator *it) {
     }
     it->cur--;
 
-    return (Token){.type = TokenType_Ident,
-                   .ident = {
-                       .ptr = it->data.ptr + start,
-                       .len = it->cur - start,
-                   }};
+    Slice(char) ident = {
+        .ptr = it->data.ptr + start,
+        .len = it->cur - start,
+    };
+
+    if (eql(ident, (Slice(char)){.ptr = "batch", .len = 5})) {
+      c = skipWhitespace(it, c);
+      if (c == 0) {
+        return (Token){.type = TokenType_EOF};
+      }
+      if (c != '{') {
+        panic("batch keyword not followed by {");
+      }
+      size_t bracket_len = 0;
+      while (c == '{') {
+        c = nextChar(it);
+        if (tokenizerEnded(it)) {
+          return (Token){.type = TokenType_EOF};
+        }
+        bracket_len += 1;
+      }
+      size_t body_start = it->cur;
+      while (true) {
+        c = nextChar(it);
+        if (tokenizerEnded(it)) {
+          panic("Unclosed batch statement");
+        }
+        if (c == '}') {
+          bool ended = true;
+          for (size_t i = 0; i < bracket_len - 1; i++) {
+            c = nextChar(it);
+            if (tokenizerEnded(it)) {
+              panic("Unclosed batch statement");
+            }
+            if (c != '}') {
+              ended = false;
+            }
+          }
+          if (ended) {
+            return (Token){
+                .type = TokenType_InlineBatch,
+                .inline_batch =
+                    {
+                        .ptr = it->data.ptr + body_start,
+                        .len = it->cur - body_start - bracket_len,
+                    },
+            };
+          }
+        }
+      }
+    }
+
+    return (Token){.type = TokenType_Ident, .ident = ident};
   }
 
   // numeric literal

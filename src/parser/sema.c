@@ -95,6 +95,8 @@ static void analyze(Allocator ally, Program prog) {
     case ExpressionStatement: {
       analyzeExpression(names.slice, stmt.expression);
     } break;
+    case InlineBatchStatement: {
+    }
     }
   }
   for (size_t i = 0; i < names.slice.len; i++) {

@@ -42,3 +42,15 @@ print(bar - foo);
 
 print(bar - foo, bar + foo);
 print(bar * foo, bar / foo);
+
+batch {
+    @rem HELLO
+}
+
+batch {{
+    @echo "}"
+}}
+
+p :: print;
+
+

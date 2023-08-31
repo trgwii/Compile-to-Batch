@@ -52,6 +52,7 @@ typedef enum {
   ExpressionStatement,
   DeclarationStatement,
   AssignmentStatement,
+  InlineBatchStatement,
 } StatementType;
 
 typedef struct {
@@ -60,6 +61,7 @@ typedef struct {
     Expression expression;
     Declaration declaration;
     Assignment assignment;
+    Slice(char) inline_batch;
   };
 } Statement;
 
@@ -125,6 +127,11 @@ static void printStatement(Statement stmt) {
     printExpression(assign.value);
     fprintf(stdout, "\n");
   } break;
+  case InlineBatchStatement: {
+    fprintf(stdout, "Inline Batch {\n");
+    fprintf(stdout, "%1.*s", (int)stmt.inline_batch.len, stmt.inline_batch.ptr);
+    fprintf(stdout, "}\n");
+  }
   }
 }
 
@@ -254,6 +261,7 @@ static inline Expression parseExpression(Allocator ally, TokenIterator *it,
   case TokenType_Plus:
   case TokenType_Hyphen:
   case TokenType_Slash:
+  case TokenType_InlineBatch:
   case TokenType_Unknown: {
     printToken(t);
     panic("\nparseExpression: Invalid TokenType ^");
@@ -319,6 +327,14 @@ static Program parse(Allocator ally, TokenIterator *it) {
       if (semi.type != TokenType_Semi) {
         printToken(semi);
         panic("\nparse: Unknown token following expression statement ^");
+      }
+    } else if (t.type == TokenType_InlineBatch) {
+      Statement s = {
+          .type = InlineBatchStatement,
+          .inline_batch = t.inline_batch,
+      };
+      if (!append(&statements, Statement, &s)) {
+        panic("Failed to append to statement list");
       }
     }
 
