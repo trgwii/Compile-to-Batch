@@ -34,7 +34,9 @@ static void emitExpression(Expression expr, StatementType parent,
     fprintf(stdout, "Skipped emitting expression\n");
   } break;
   case ArithmeticExpression: {
-    if (parent != DeclarationStatement && parent != AssignmentStatement) {
+    char quot = '"';
+    if (parent != DeclarationStatement && parent != AssignmentStatement &&
+        expr.arithmetic.op != '=' /* comparison */) {
       char temporary_string[128];
       int temporary_string_len =
           sprintf(temporary_string, "_tmp%lu_", temporaries->slice.len);
@@ -54,9 +56,15 @@ static void emitExpression(Expression expr, StatementType parent,
           (Expression){.type = IdentifierExpression, .identifier = tmp_str.val},
           parent, ally, temporaries, out);
     } else {
+      append(out, char, &quot);
       emitExpression(*expr.arithmetic.left, parent, ally, temporaries, out);
-      append(out, char, &expr.arithmetic.op);
+      if (expr.arithmetic.op == '=') {
+        appendManyCString(out, "\"==\"");
+      } else {
+        append(out, char, &expr.arithmetic.op);
+      }
       emitExpression(*expr.arithmetic.right, parent, ally, temporaries, out);
+      append(out, char, &quot);
     }
   } break;
   }
@@ -107,6 +115,26 @@ static void emitStatement(Statement stmt, Allocator ally,
     appendSlice(out, char, trim(stmt.inline_batch));
     appendManyCString(out, "\r\n");
   } break;
+  case BlockStatement: {
+    appendManyCString(out, "@setlocal EnableDelayedExpansion\r\n");
+    for (size_t i = 0; i < stmt.block->statements.len; i++) {
+      emitStatement(stmt.block->statements.ptr[i], ally, temporaries, out);
+    }
+    appendManyCString(out, "@endlocal\r\n");
+  } break;
+  case IfStatement: {
+    appendManyCString(out, "@if not ");
+    emitExpression(stmt.if_statement->condition, IfStatement, ally, temporaries,
+                   out);
+    appendManyCString(out, " goto :_else_\r\n");
+    emitStatement(*stmt.if_statement->consequence, ally, temporaries, out);
+    appendManyCString(out, "goto :_done_\r\n");
+    appendManyCString(out, ":_else_\r\n");
+    if (stmt.if_statement->alternate) {
+      emitStatement(*stmt.if_statement->alternate, ally, temporaries, out);
+    }
+    appendManyCString(out, ":_done_\r\n");
+  } break;
   case ExpressionStatement: {
     Expression expr = stmt.expression;
     switch (expr.type) {
@@ -139,6 +167,9 @@ static void emitStatement(Statement stmt, Allocator ally,
       fprintf(stdout, "\n");
     } break;
     }
+  } break;
+  case StatementEOF: {
+    panic("StatementEOF");
   } break;
   }
 }

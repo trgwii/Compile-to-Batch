@@ -54,3 +54,28 @@ batch {{
 p :: print;
 
 batch{echo %RANDOM%}
+
+foo :: 200;
+
+{
+    insideblock := 400;
+    print(insideblock);
+}
+
+batch {@if "%foo%" GEQ "100" goto :poop}
+
+print("Never prints");
+
+batch {:poop}
+
+print("LOL");
+
+if (foo == 42) {
+    print("Yes");
+}
+
+if (foo == 84) {
+    print("Yes");
+} else {
+    print("No");
+}

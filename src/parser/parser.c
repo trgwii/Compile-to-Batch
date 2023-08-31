@@ -49,11 +49,17 @@ typedef struct {
 } Assignment;
 
 typedef enum {
+  StatementEOF = 0,
   ExpressionStatement,
   DeclarationStatement,
   AssignmentStatement,
   InlineBatchStatement,
+  BlockStatement,
+  IfStatement,
 } StatementType;
+
+typedef struct If If;
+typedef struct Block Block;
 
 typedef struct {
   StatementType type;
@@ -62,6 +68,8 @@ typedef struct {
     Declaration declaration;
     Assignment assignment;
     Slice(char) inline_batch;
+    If *if_statement;
+    Block *block;
   };
 } Statement;
 
@@ -69,6 +77,22 @@ DefSlice(Statement);
 DefResult(Slice_Statement);
 DefVec(Statement);
 DefResult(Vec_Statement);
+
+struct If {
+  Expression condition;
+  Statement *consequence;
+  Statement *alternate;
+};
+
+DefSlice(If);
+DefResult(Slice_If);
+
+struct Block {
+  Slice(Statement) statements;
+};
+
+DefSlice(Block);
+DefResult(Slice_Block);
 
 static void printExpression(Expression expr) {
   fprintf(stdout, "Expr:");
@@ -131,7 +155,27 @@ static void printStatement(Statement stmt) {
     fprintf(stdout, "Inline Batch {\n");
     fprintf(stdout, "%1.*s", (int)stmt.inline_batch.len, stmt.inline_batch.ptr);
     fprintf(stdout, "}\n");
-  }
+  } break;
+  case IfStatement: {
+    fprintf(stdout, "If (");
+    printExpression(stmt.if_statement->condition);
+    fprintf(stdout, ") ");
+    printStatement(*stmt.if_statement->consequence);
+    if (stmt.if_statement->alternate) {
+      fprintf(stdout, " else ");
+      printStatement(*stmt.if_statement->alternate);
+    }
+  } break;
+  case BlockStatement: {
+    fprintf(stdout, "Block {\n");
+    for (size_t i = 0; i < stmt.block->statements.len; i++) {
+      printStatement(stmt.block->statements.ptr[i]);
+    }
+    fprintf(stdout, "}\n");
+  } break;
+  case StatementEOF: {
+    panic("StatementEOF");
+  } break;
   }
 }
 
@@ -148,10 +192,19 @@ static inline Expression parseExpression(Allocator ally, TokenIterator *it,
   case TokenType_Number: {
     Token next = peekToken(it);
     if (next.type != TokenType_Star && next.type != TokenType_Plus &&
-        next.type != TokenType_Hyphen && next.type != TokenType_Slash) {
+        next.type != TokenType_Hyphen && next.type != TokenType_Slash &&
+        next.type != TokenType_Equal) {
       return (Expression){.type = NumericExpression, .number = t.number};
     }
-    nextToken(it); // op
+    if (nextToken(it).type == TokenType_Equal) { // op
+      if (peekToken(it).type != TokenType_Equal) {
+        panic("Invalid expression following <num> =");
+      }
+      // ==
+      //  ^
+      nextToken(it);
+    }
+
     Result(Slice_Expression) lr_res = alloc(ally, Expression, 2);
     if (!lr_res.ok)
       panic(lr_res.err);
@@ -166,6 +219,7 @@ static inline Expression parseExpression(Allocator ally, TokenIterator *it,
                 .op = next.type == TokenType_Star     ? '*'
                       : next.type == TokenType_Plus   ? '+'
                       : next.type == TokenType_Hyphen ? '-'
+                      : next.type == TokenType_Equal  ? '=' // comparison
                                                       : '/',
                 .left = left,
                 .right = right,
@@ -177,8 +231,16 @@ static inline Expression parseExpression(Allocator ally, TokenIterator *it,
   case TokenType_Ident: {
     Token next = peekToken(it);
     if (next.type == TokenType_Star || next.type == TokenType_Plus ||
-        next.type == TokenType_Hyphen || next.type == TokenType_Slash) {
-      nextToken(it); // op
+        next.type == TokenType_Hyphen || next.type == TokenType_Slash ||
+        next.type == TokenType_Equal) {
+      if (nextToken(it).type == TokenType_Equal) { // op
+        if (peekToken(it).type != TokenType_Equal) {
+          panic("Invalid expression following <num> =");
+        }
+        // ==
+        //  ^
+        nextToken(it);
+      }
       Result(Slice_Expression) lr_res = alloc(ally, Expression, 2);
       if (!lr_res.ok)
         panic(lr_res.err);
@@ -186,7 +248,7 @@ static inline Expression parseExpression(Allocator ally, TokenIterator *it,
       Expression *right = &lr_res.val.ptr[1];
       *left = (Expression){
           .type = IdentifierExpression,
-          .number = t.number,
+          .number = t.ident,
       };
       *right = parseExpression(ally, it, nextToken(it));
       return (Expression){
@@ -196,6 +258,7 @@ static inline Expression parseExpression(Allocator ally, TokenIterator *it,
                   .op = next.type == TokenType_Star     ? '*'
                         : next.type == TokenType_Plus   ? '+'
                         : next.type == TokenType_Hyphen ? '-'
+                        : next.type == TokenType_Equal  ? '=' // comparison
                                                         : '/',
                   .left = left,
                   .right = right,
@@ -253,6 +316,8 @@ static inline Expression parseExpression(Allocator ally, TokenIterator *it,
   case TokenType_EOF:
   case TokenType_OpenParen:
   case TokenType_CloseParen:
+  case TokenType_OpenCurly:
+  case TokenType_CloseCurly:
   case TokenType_Semi:
   case TokenType_Comma:
   case TokenType_Colon:
@@ -269,77 +334,173 @@ static inline Expression parseExpression(Allocator ally, TokenIterator *it,
   }
 }
 
+static Statement parseStatement(Allocator ally, TokenIterator *it) {
+  TokenIterator snapshot = *it;
+  Token t = nextToken(it);
+
+  switch (t.type) {
+
+  case TokenType_Ident:
+  case TokenType_Number:
+  case TokenType_String: {
+    if (t.type == TokenType_Ident && peekToken(it).type == TokenType_Colon) {
+      nextToken(it); // :
+      Token afterColon = peekToken(it);
+      if (afterColon.type != TokenType_Equal &&
+          afterColon.type != TokenType_Colon) {
+        printToken(peekToken(it));
+        panic("Invalid token following colon ^");
+      }
+      nextToken(it); // =
+      Expression value = parseExpression(ally, it, nextToken(it));
+
+      Statement decl_stmt = {
+          .type = DeclarationStatement,
+          .declaration = {.name = t.ident,
+                          .value = value,
+                          .constant = afterColon.type == TokenType_Colon},
+      };
+      Token semi = nextToken(it);
+      if (semi.type != TokenType_Semi) {
+        printToken(semi);
+        panic("\nparse: Unknown token following expression statement ^");
+      }
+      return decl_stmt;
+    } else if (t.type == TokenType_Ident &&
+               eql(t.ident, (Slice(char)){.ptr = "if", .len = 2})) {
+      if (peekToken(it).type != TokenType_OpenParen) {
+        panic("Missing ( after if");
+      }
+      nextToken(it); // (
+      Expression condition = parseExpression(ally, it, nextToken(it));
+      if (peekToken(it).type != TokenType_CloseParen) {
+        printToken(peekToken(it));
+        panic("\nMissing ) after if condition");
+      }
+      nextToken(it); // )
+      Result(Slice_If) if_res = alloc(ally, If, 1);
+      if (!if_res.ok)
+        panic(if_res.err);
+      If *if_statement = if_res.val.ptr;
+      Result(Slice_Statement) cons_res = alloc(ally, Statement, 1);
+      if (!cons_res.ok)
+        panic(cons_res.err);
+      Statement *consequence = cons_res.val.ptr;
+      *consequence = parseStatement(ally, it);
+      if_statement->condition = condition;
+      if_statement->consequence = consequence;
+      if_statement->alternate = NULL;
+      Token elseToken = peekToken(it);
+      if (elseToken.type == TokenType_Ident &&
+          eql(elseToken.ident, (Slice(char)){.ptr = "else", .len = 4})) {
+        nextToken(it);
+        Result(Slice_Statement) alt_res = alloc(ally, Statement, 1);
+        if (!alt_res.ok)
+          panic(alt_res.err);
+        Statement *alternate = alt_res.val.ptr;
+        *alternate = parseStatement(ally, it);
+        if_statement->alternate = alternate;
+      }
+      Statement s = {
+          .type = IfStatement,
+          .if_statement = if_statement,
+      };
+      return s;
+    } else if (t.type == TokenType_Ident &&
+               peekToken(it).type == TokenType_Equal) {
+      nextToken(it);
+      Expression value = parseExpression(ally, it, nextToken(it));
+
+      Statement assign_stmt = {
+          .type = AssignmentStatement,
+          .assignment = {.name = t.ident, .value = value},
+      };
+      Token semi = nextToken(it);
+      if (semi.type != TokenType_Semi) {
+        printToken(semi);
+        panic("\nparse: Unknown token following expression statement ^");
+      }
+      return assign_stmt;
+    } else {
+      Statement s = {
+          .type = ExpressionStatement,
+          .expression = parseExpression(ally, it, t),
+      };
+      Token semi = nextToken(it);
+      if (semi.type != TokenType_Semi) {
+        printToken(semi);
+        panic("\nparse: Unknown token following expression statement ^");
+      }
+      return s;
+    }
+  } break;
+  case TokenType_InlineBatch: {
+    Statement s = {
+        .type = InlineBatchStatement,
+        .inline_batch = t.inline_batch,
+    };
+    return s;
+  } break;
+  case TokenType_OpenCurly: {
+    Result(Vec_Statement) statements_res = createVec(ally, Statement, 4);
+    if (!statements_res.ok)
+      panic(statements_res.err);
+    Vec(Statement) statements = statements_res.val;
+    Statement stmt = parseStatement(ally, it);
+    while (stmt.type) {
+      printStatement(stmt);
+      if (!append(&statements, Statement, &stmt)) {
+        panic("Failed to append statement in block");
+      }
+      stmt = parseStatement(ally, it);
+    }
+    Token closecurly = peekToken(it);
+    if (closecurly.type != TokenType_CloseCurly) {
+      printToken(closecurly);
+      printf("fart\n");
+      panic("\nparse: Unknown token following block ^");
+    }
+    nextToken(it); // }
+    Result(Slice_Block) block_res = alloc(ally, Block, 1);
+    if (!block_res.ok)
+      panic(block_res.err);
+    block_res.val.ptr->statements = statements.slice;
+    return (Statement){.type = BlockStatement, .block = block_res.val.ptr};
+  } break;
+  case TokenType_EOF:
+  case TokenType_OpenParen:
+  case TokenType_CloseParen:
+  case TokenType_CloseCurly:
+  case TokenType_Semi:
+  case TokenType_Comma:
+  case TokenType_Colon:
+  case TokenType_Equal:
+  case TokenType_Star:
+  case TokenType_Plus:
+  case TokenType_Hyphen:
+  case TokenType_Slash:
+  case TokenType_Unknown: {
+    *it = snapshot; // restore
+    return (Statement){.type = StatementEOF};
+  } break;
+  }
+}
+
 static Program parse(Allocator ally, TokenIterator *it) {
   Result(Vec_Statement) res = createVec(ally, Statement, 16);
   if (!res.ok) {
     panic("parse: Failed to alloc statements");
   }
   Vec(Statement) statements = res.val;
-  Token t = nextToken(it);
 
-  while (t.type) {
-
-    if (t.type == TokenType_Ident || t.type == TokenType_Number ||
-        t.type == TokenType_String) {
-      if (t.type == TokenType_Ident && peekToken(it).type == TokenType_Colon) {
-        nextToken(it); // :
-        Token afterColon = peekToken(it);
-        if (afterColon.type != TokenType_Equal &&
-            afterColon.type != TokenType_Colon) {
-          printToken(peekToken(it));
-          panic("Invalid token following colon ^");
-        }
-        nextToken(it); // =
-        Expression value = parseExpression(ally, it, nextToken(it));
-
-        Statement decl_stmt = {
-            .type = DeclarationStatement,
-            .declaration = {.name = t.ident,
-                            .value = value,
-                            .constant = afterColon.type == TokenType_Colon},
-        };
-        if (!append(&statements, Statement, &decl_stmt)) {
-          panic("Failed to append decl to statement list");
-        }
-      } else if (t.type == TokenType_Ident &&
-                 peekToken(it).type == TokenType_Equal) {
-        nextToken(it);
-        Expression value = parseExpression(ally, it, nextToken(it));
-
-        Statement assign_stmt = {
-            .type = AssignmentStatement,
-            .assignment = {.name = t.ident, .value = value},
-        };
-        if (!append(&statements, Statement, &assign_stmt)) {
-          panic("Failed to append decl to statement list");
-        }
-
-      } else {
-        Statement s = {
-            .type = ExpressionStatement,
-            .expression = parseExpression(ally, it, t),
-        };
-        if (!append(&statements, Statement, &s)) {
-          panic("Failed to append to statement list");
-        }
-      }
-      Token semi = nextToken(it);
-      if (semi.type != TokenType_Semi) {
-        printToken(semi);
-        panic("\nparse: Unknown token following expression statement ^");
-      }
-    } else if (t.type == TokenType_InlineBatch) {
-      Statement s = {
-          .type = InlineBatchStatement,
-          .inline_batch = t.inline_batch,
-      };
-      if (!append(&statements, Statement, &s)) {
-        panic("Failed to append to statement list");
-      }
+  Statement stmt = parseStatement(ally, it);
+  while (stmt.type) {
+    if (!append(&statements, Statement, &stmt)) {
+      panic("Failed to append to statement list");
     }
-
-    t = nextToken(it);
+    stmt = parseStatement(ally, it);
   }
+
   shrinkToLength(&statements, Statement);
   return (Program){.statements = statements.slice};
 }

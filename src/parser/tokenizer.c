@@ -25,6 +25,8 @@ typedef enum {
   TokenType_Number,
   TokenType_OpenParen,
   TokenType_CloseParen,
+  TokenType_OpenCurly,
+  TokenType_CloseCurly,
   TokenType_Semi,
   TokenType_Comma,
   TokenType_String,
@@ -69,6 +71,12 @@ static void printToken(Token t) {
   } break;
   case TokenType_CloseParen: {
     printf("CloseParen");
+  } break;
+  case TokenType_OpenCurly: {
+    printf("OpenCurly");
+  } break;
+  case TokenType_CloseCurly: {
+    printf("CloseCurly");
   } break;
   case TokenType_Semi: {
     printf("Semi");
@@ -173,6 +181,10 @@ static Token nextToken(TokenIterator *it) {
     return (Token){.type = TokenType_OpenParen};
   case ')':
     return (Token){.type = TokenType_CloseParen};
+  case '{':
+    return (Token){.type = TokenType_OpenCurly};
+  case '}':
+    return (Token){.type = TokenType_CloseCurly};
   case ';':
     return (Token){.type = TokenType_Semi};
   case ',':
