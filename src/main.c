@@ -13,11 +13,11 @@
 #include "std/writeAll.c"
 
 static void printSize(size_t bytes) {
-  if (bytes > 1024 * 1024) {
+  if (bytes >= 1024 * 1024) {
     printf("%.2fMiB", (double)bytes / (1024 * 1024));
     return;
   }
-  if (bytes > 1024) {
+  if (bytes >= 1024) {
     printf("%.2fKiB", (double)bytes / 1024);
     return;
   }
@@ -53,12 +53,12 @@ int main(int argc, char **argv, char **envp) {
     panic("usage: bc [inputfile.bb] [outputfile.cmd]");
   }
 
-  char mem[65536];
+  char mem[1048576];
   Bump state = {
       .mem =
           {
               .ptr = mem,
-              .len = 65536,
+              .len = 1048576,
           },
       .cur = 0,
   };

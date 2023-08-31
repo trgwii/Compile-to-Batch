@@ -79,3 +79,11 @@ if (foo == 84) {
 } else {
     print("No");
 }
+
+
+ding :: 42 == 42;
+
+
+if (ding) {
+    print("Yuppers");
+}

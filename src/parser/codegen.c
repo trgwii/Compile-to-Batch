@@ -12,10 +12,16 @@ static void emitExpression(Expression expr, StatementType parent,
                            Vec(char) * out) {
   switch (expr.type) {
   case IdentifierExpression: {
-    char perc = '%';
-    append(out, char, &perc);
-    appendSlice(out, char, expr.identifier);
-    append(out, char, &perc);
+    if (parent == IfStatement) {
+      appendManyCString(out, "\"%");
+      appendSlice(out, char, expr.identifier);
+      appendManyCString(out, "%\"==\"true\"");
+    } else {
+      char perc = '%';
+      append(out, char, &perc);
+      appendSlice(out, char, expr.identifier);
+      append(out, char, &perc);
+    }
   } break;
   case NumericExpression: {
     appendSlice(out, char, expr.number);
@@ -35,8 +41,11 @@ static void emitExpression(Expression expr, StatementType parent,
   } break;
   case ArithmeticExpression: {
     char quot = '"';
-    if (parent != DeclarationStatement && parent != AssignmentStatement &&
-        expr.arithmetic.op != '=' /* comparison */) {
+    if ((parent != DeclarationStatement && parent != AssignmentStatement &&
+         expr.arithmetic.op != '=') ||
+        ((parent == DeclarationStatement || parent == AssignmentStatement) &&
+         expr.arithmetic.op == '=')) {
+      // Create a temporary
       char temporary_string[128];
       int temporary_string_len =
           sprintf(temporary_string, "_tmp%lu_", temporaries->slice.len);
@@ -47,10 +56,42 @@ static void emitExpression(Expression expr, StatementType parent,
       for (int i = 0; i < temporary_string_len; i++) {
         tmp_str.val.ptr[i] = temporary_string[i];
       }
-      Statement temporary = {
-          .type = DeclarationStatement,
-          .declaration = {.name = tmp_str.val, .value = expr},
-      };
+      Statement temporary;
+      if (expr.arithmetic.op == '=') {
+        Result(Slice_If) if_res = alloc(ally, If, 1);
+        if (!if_res.ok)
+          panic(if_res.err);
+        if_res.val.ptr->condition = expr;
+        Result(Slice_Statement) con_res = alloc(ally, Statement, 1);
+        if (!con_res.ok)
+          panic(con_res.err);
+        con_res.val.ptr->type = DeclarationStatement;
+        con_res.val.ptr->declaration = (Declaration){
+            .name = tmp_str.val,
+            .value = {.type = StringExpression,
+                      .string = {.ptr = "true", .len = 4}},
+            .constant = true,
+        };
+        if_res.val.ptr->consequence = con_res.val.ptr;
+        Result(Slice_Statement) alt_res = alloc(ally, Statement, 1);
+        if (!alt_res.ok)
+          panic(alt_res.err);
+        alt_res.val.ptr->type = DeclarationStatement;
+        alt_res.val.ptr->declaration = (Declaration){
+            .name = tmp_str.val,
+            .value = {.type = StringExpression,
+                      .string = {.ptr = "false", .len = 5}},
+            .constant = true,
+        };
+        if_res.val.ptr->alternate = alt_res.val.ptr;
+        temporary =
+            (Statement){.type = IfStatement, .if_statement = if_res.val.ptr};
+      } else {
+        temporary = (Statement){
+            .type = DeclarationStatement,
+            .declaration = {.name = tmp_str.val, .value = expr},
+        };
+      }
       append(temporaries, Statement, &temporary);
       emitExpression(
           (Expression){.type = IdentifierExpression, .identifier = tmp_str.val},
@@ -192,7 +233,7 @@ static void outputBatch(Program prog, Allocator ally, Vec(char) * out) {
     emitStatement(stmt, ally, &temporaries.val, &buffered.val);
     // TODO: clear and print temporaries
     for (size_t j = 0; j < temporaries.val.slice.len; j++) {
-      emitStatement(temporaries.val.slice.ptr[j], ally, NULL, out);
+      emitStatement(temporaries.val.slice.ptr[j], ally, &temporaries.val, out);
     }
     temporaries.val.slice.len = 0;
     appendSlice(out, char, buffered.val.slice);
