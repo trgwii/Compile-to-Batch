@@ -186,7 +186,7 @@ static void emitStatement(Statement stmt, Allocator ally,
     appendManyCString(out, "\r\n");
     emitStatement(*stmt.if_statement->consequence, ally, temporaries, out,
                   branch_labels);
-    appendManyCString(out, "goto :");
+    appendManyCString(out, "@goto :");
     temporary_string_len =
         (size_t)sprintf(temporary_string, "_done%lu_", branch_label);
     branch_slice =

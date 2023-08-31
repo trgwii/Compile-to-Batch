@@ -34,7 +34,6 @@ static Result(Slice_void) alloc_(Allocator ally, size_t size, size_t length) {
 
 static void resizeAllocation_(Allocator ally, Slice(void) * allocation,
                               size_t size, size_t new_length) {
-  printf("%lu -> %lu\n", allocation->len, new_length);
   void *ptr = ally.realloc(allocation->ptr, size * new_length,
                            size * allocation->len, ally.state);
   if (!ptr && new_length) {

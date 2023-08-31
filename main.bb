@@ -83,6 +83,7 @@ if (foo == 84) {
 
 ding :: 42 == 42;
 
+print(ding);
 
 if (ding) {
     print("Yuppers");
