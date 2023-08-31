@@ -98,13 +98,15 @@ static void emitExpression(Expression expr, StatementType parent,
           parent, ally, temporaries, out);
     } else {
       append(out, char, &quot);
-      emitExpression(*expr.arithmetic.left, parent, ally, temporaries, out);
+      emitExpression(*expr.arithmetic.left, BlockStatement, ally, temporaries,
+                     out);
       if (expr.arithmetic.op == '=') {
         appendManyCString(out, "\"==\"");
       } else {
         append(out, char, &expr.arithmetic.op);
       }
-      emitExpression(*expr.arithmetic.right, parent, ally, temporaries, out);
+      emitExpression(*expr.arithmetic.right, BlockStatement, ally, temporaries,
+                     out);
       append(out, char, &quot);
     }
   } break;
@@ -123,7 +125,8 @@ static Slice(char) trim(Slice(char) str) {
 }
 
 static void emitStatement(Statement stmt, Allocator ally,
-                          Vec(Statement) * temporaries, Vec(char) * out) {
+                          Vec(Statement) * temporaries, Vec(char) * out,
+                          size_t *branch_labels) {
   char quot = '"';
   char equal = '=';
   switch (stmt.type) {
@@ -159,22 +162,55 @@ static void emitStatement(Statement stmt, Allocator ally,
   case BlockStatement: {
     appendManyCString(out, "@setlocal EnableDelayedExpansion\r\n");
     for (size_t i = 0; i < stmt.block->statements.len; i++) {
-      emitStatement(stmt.block->statements.ptr[i], ally, temporaries, out);
+      emitStatement(stmt.block->statements.ptr[i], ally, temporaries, out,
+                    branch_labels);
     }
     appendManyCString(out, "@endlocal\r\n");
   } break;
   case IfStatement: {
+    char temporary_string[128];
+    size_t temporary_string_len = 0;
+    Slice(char) branch_slice;
+    size_t branch_label = *branch_labels;
+    *branch_labels += 1;
     appendManyCString(out, "@if not ");
     emitExpression(stmt.if_statement->condition, IfStatement, ally, temporaries,
                    out);
-    appendManyCString(out, " goto :_else_\r\n");
-    emitStatement(*stmt.if_statement->consequence, ally, temporaries, out);
-    appendManyCString(out, "goto :_done_\r\n");
-    appendManyCString(out, ":_else_\r\n");
+
+    appendManyCString(out, " goto :");
+    temporary_string_len =
+        (size_t)sprintf(temporary_string, "_else%lu_", branch_label);
+    branch_slice =
+        (Slice(char)){.ptr = temporary_string, .len = temporary_string_len};
+    appendSlice(out, char, branch_slice);
+    appendManyCString(out, "\r\n");
+    emitStatement(*stmt.if_statement->consequence, ally, temporaries, out,
+                  branch_labels);
+    appendManyCString(out, "goto :");
+    temporary_string_len =
+        (size_t)sprintf(temporary_string, "_done%lu_", branch_label);
+    branch_slice =
+        (Slice(char)){.ptr = temporary_string, .len = temporary_string_len};
+    appendSlice(out, char, branch_slice);
+    appendManyCString(out, "\r\n");
+    appendManyCString(out, ":");
+    temporary_string_len =
+        (size_t)sprintf(temporary_string, "_else%lu_", branch_label);
+    branch_slice =
+        (Slice(char)){.ptr = temporary_string, .len = temporary_string_len};
+    appendSlice(out, char, branch_slice);
+    appendManyCString(out, "\r\n");
     if (stmt.if_statement->alternate) {
-      emitStatement(*stmt.if_statement->alternate, ally, temporaries, out);
+      emitStatement(*stmt.if_statement->alternate, ally, temporaries, out,
+                    branch_labels);
     }
-    appendManyCString(out, ":_done_\r\n");
+    appendManyCString(out, ":");
+    temporary_string_len =
+        (size_t)sprintf(temporary_string, "_done%lu_", branch_label);
+    branch_slice =
+        (Slice(char)){.ptr = temporary_string, .len = temporary_string_len};
+    appendSlice(out, char, branch_slice);
+    appendManyCString(out, "\r\n");
   } break;
   case ExpressionStatement: {
     Expression expr = stmt.expression;
@@ -228,12 +264,14 @@ static void outputBatch(Program prog, Allocator ally, Vec(char) * out) {
   if (!buffered.ok)
     panic(buffered.err);
 
+  size_t branch_labels = 0;
+
   for (size_t i = 0; i < prog.statements.len; i++) {
     Statement stmt = prog.statements.ptr[i];
-    emitStatement(stmt, ally, &temporaries.val, &buffered.val);
-    // TODO: clear and print temporaries
+    emitStatement(stmt, ally, &temporaries.val, &buffered.val, &branch_labels);
     for (size_t j = 0; j < temporaries.val.slice.len; j++) {
-      emitStatement(temporaries.val.slice.ptr[j], ally, &temporaries.val, out);
+      emitStatement(temporaries.val.slice.ptr[j], ally, &temporaries.val, out,
+                    &branch_labels);
     }
     temporaries.val.slice.len = 0;
     appendSlice(out, char, buffered.val.slice);
