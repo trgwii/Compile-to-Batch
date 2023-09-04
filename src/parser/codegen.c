@@ -217,7 +217,7 @@ static void emitStatement(Statement stmt, Allocator ally,
     appendManyCString(out, "@endlocal");
     for (size_t i = 0; i < new_outer_assignments.slice.len; i++) {
       Statement assignment = new_outer_assignments.slice.ptr[i];
-      appendManyCString(out, " && @set \"");
+      appendManyCString(out, " && set \"");
       appendSlice(out, char, assignment.assignment.name);
       appendManyCString(out, "=%");
       appendSlice(out, char, assignment.assignment.value.identifier);
