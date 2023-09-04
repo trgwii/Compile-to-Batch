@@ -1,13 +1,8 @@
-wefwfopwefopk;
-wfwefjiowiojef;
 423;
-Xef;
 print("Hello");
 print("Escaped\"String");
 print("Multi", 42, "Params");
 foo := 42;
-
-foo :: 84;
 
 foo = 12;
 
@@ -15,7 +10,7 @@ baz := "Hello";
 
 baz = "World";
 
-qux = 42;
+qux := 42;
 
 quux :: 999;
 
@@ -36,12 +31,14 @@ print(x, y);
 
 print(x + y);
 
-foo :: 42 + 84;
-bar :: 42 * foo + 18;
-print(bar - foo);
+{
+    foo :: 42 + 84;
+    bar :: 42 * foo + 18;
+    print(bar - foo);
 
-print(bar - foo, bar + foo);
-print(bar * foo, bar / foo);
+    print(bar - foo, bar + foo);
+    print(bar * foo, bar / foo);
+}
 
 batch {
     @rem HELLO
@@ -55,7 +52,6 @@ p :: print;
 
 batch{echo %RANDOM%}
 
-foo :: 200;
 
 {
     insideblock := 400;
@@ -89,13 +85,20 @@ if (ding) {
     print("Yuppers");
 }
 
+{
+    foo := 42;
 
-dong := 42;
-
-while (dong != 50) {
-    bong := 42;
-    dong = dong + 1;
-    bong = dong + 1;
-    dong = dong + 1;
-    print("dong", dong);
+    while (foo != 50) {
+        bar := 42;
+        foo = foo + 1;
+        bar = foo + 1;
+        foo = foo + 1;
+        print("foo", foo);
+    }
 }
+
+add :: (a, b) {
+    return a + b;
+};
+
+print(add(1, 2));

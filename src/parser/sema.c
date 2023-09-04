@@ -24,7 +24,10 @@ static bool nameListHasString(Slice(Binding) list, Slice(char) string) {
   return false;
 }
 
-static void analyzeExpression(Slice(Binding) names, Expression expr) {
+static void analyzeStatement(Vec(Binding) * names, Statement stmt);
+
+static void analyzeExpression(Allocator ally, Slice(Binding) names,
+                              Expression expr) {
   switch (expr.type) {
   case IdentifierExpression: {
     if (!nameListHasString(names, expr.identifier)) {
@@ -41,14 +44,32 @@ static void analyzeExpression(Slice(Binding) names, Expression expr) {
     }
   } break;
   case CallExpression: {
-    analyzeExpression(names, *expr.call.callee);
+    analyzeExpression(ally, names, *expr.call.callee);
     for (size_t i = 0; i < expr.call.parameters_len; i++) {
-      analyzeExpression(names, expr.call.parameters[i]);
+      analyzeExpression(ally, names, expr.call.parameters[i]);
     }
   } break;
   case ArithmeticExpression: {
-    analyzeExpression(names, *expr.arithmetic.left);
-    analyzeExpression(names, *expr.arithmetic.right);
+    analyzeExpression(ally, names, *expr.arithmetic.left);
+    analyzeExpression(ally, names, *expr.arithmetic.right);
+  } break;
+  case FunctionExpression: {
+    Result(Vec_Binding) locals_res = createVec(ally, Binding, 1);
+    if (!locals_res.ok)
+      panic(locals_res.err);
+    Vec(Binding) locals = locals_res.val;
+    for (size_t i = 0; i < expr.function_expression.parameters_len; i++) {
+      Expression param = expr.function_expression.parameters[i];
+      Binding binding = {
+          .name = param.identifier,
+          .constant = false,
+          .read = false,
+      };
+      if (!append(&locals, Binding, &binding)) {
+        panic("Failed to append to names");
+      }
+    }
+    analyzeStatement(&locals, *expr.function_expression.body);
   } break;
   case NumericExpression:
   case StringExpression: {
@@ -65,7 +86,7 @@ static void analyzeStatement(Vec(Binding) * names, Statement stmt) {
               (int)stmt.declaration.name.len, stmt.declaration.name.ptr);
       return;
     }
-    analyzeExpression(names->slice, stmt.declaration.value);
+    analyzeExpression(names->ally, names->slice, stmt.declaration.value);
     Binding binding = {.name = stmt.declaration.name,
                        .constant = stmt.declaration.constant,
                        .read = false};
@@ -87,26 +108,30 @@ static void analyzeStatement(Vec(Binding) * names, Statement stmt) {
         }
       }
     }
-    analyzeExpression(names->slice, stmt.assignment.value);
+    analyzeExpression(names->ally, names->slice, stmt.assignment.value);
   } break;
   case ExpressionStatement: {
-    analyzeExpression(names->slice, stmt.expression);
+    analyzeExpression(names->ally, names->slice, stmt.expression);
   } break;
   case IfStatement: {
-    analyzeExpression(names->slice, stmt.if_statement->condition);
+    analyzeExpression(names->ally, names->slice, stmt.if_statement->condition);
     analyzeStatement(names, *stmt.if_statement->consequence);
     if (stmt.if_statement->alternate) {
       analyzeStatement(names, *stmt.if_statement->alternate);
     }
   } break;
   case WhileStatement: {
-    analyzeExpression(names->slice, stmt.while_statement->condition);
+    analyzeExpression(names->ally, names->slice,
+                      stmt.while_statement->condition);
     analyzeStatement(names, *stmt.while_statement->body);
   } break;
   case BlockStatement: {
     for (size_t i = 0; i < stmt.block->statements.len; i++) {
       analyzeStatement(names, stmt.block->statements.ptr[i]);
     }
+  } break;
+  case ReturnStatement: {
+    analyzeExpression(names->ally, names->slice, *stmt.return_statement);
   } break;
   case InlineBatchStatement: {
   } break;

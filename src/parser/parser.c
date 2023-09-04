@@ -5,12 +5,18 @@
 #include "../std/Vec.c"
 #include "tokenizer.c"
 
+typedef struct If If;
+typedef struct While While;
+typedef struct Block Block;
+typedef struct Statement Statement;
+
 typedef enum {
   CallExpression,
   IdentifierExpression,
   NumericExpression,
   StringExpression,
   ArithmeticExpression,
+  FunctionExpression,
 } ExpressionType;
 
 typedef struct Expression {
@@ -29,6 +35,11 @@ typedef struct Expression {
       struct Expression *left;
       struct Expression *right;
     } arithmetic;
+    struct {
+      struct Expression *parameters;
+      size_t parameters_len;
+      Statement *body;
+    } function_expression;
   };
 } Expression;
 
@@ -57,13 +68,10 @@ typedef enum {
   BlockStatement,
   IfStatement,
   WhileStatement,
+  ReturnStatement,
 } StatementType;
 
-typedef struct If If;
-typedef struct While While;
-typedef struct Block Block;
-
-typedef struct {
+struct Statement {
   StatementType type;
   union {
     Expression expression;
@@ -73,8 +81,9 @@ typedef struct {
     If *if_statement;
     While *while_statement;
     Block *block;
+    Expression *return_statement;
   };
-} Statement;
+};
 
 DefSlice(Statement);
 DefResult(Slice_Statement);
@@ -102,6 +111,8 @@ DefSlice(While);
 DefResult(Slice_While);
 DefSlice(Block);
 DefResult(Slice_Block);
+
+static void printStatement(Statement stmt);
 
 static void printExpression(Expression expr) {
   fprintf(stdout, "Expr:");
@@ -136,6 +147,19 @@ static void printExpression(Expression expr) {
     fprintf(stdout, " %c ", expr.arithmetic.op);
     printExpression(*expr.arithmetic.right);
     fprintf(stdout, ")");
+  } break;
+  case FunctionExpression: {
+    fprintf(stdout, "Function (");
+    if (expr.function_expression.parameters_len > 0) {
+      printExpression(expr.function_expression.parameters[0]);
+    }
+    for (size_t i = 1; i < expr.function_expression.parameters_len; i++) {
+      fprintf(stdout, ", ");
+      printExpression(expr.function_expression.parameters[i]);
+    }
+    fprintf(stdout, ") ");
+    printStatement(*expr.function_expression.body);
+
   } break;
   }
 }
@@ -188,6 +212,12 @@ static void printStatement(Statement stmt) {
     }
     fprintf(stdout, "}\n");
   } break;
+  case ReturnStatement: {
+    fprintf(stdout, "Return (");
+    if (stmt.return_statement)
+      printExpression(*stmt.return_statement);
+    fprintf(stdout, ")\n");
+  } break;
   case StatementEOF: {
     panic("StatementEOF");
   } break;
@@ -198,8 +228,39 @@ typedef struct {
   Slice(Statement) statements;
 } Program;
 
-// static Expression parseUnitExpression(Allocator ally, TokenIterator *it,
-//                                       Token t) {}
+static inline Expression parseExpression(Allocator ally, TokenIterator *it,
+                                         Token t);
+static Statement parseStatement(Allocator ally, TokenIterator *it);
+
+static Vec(Expression) parseParameters(Allocator ally, TokenIterator *it) {
+  Result(Vec_Expression) res = createVec(ally, Expression, 1);
+  if (!res.ok) {
+    panic(res.err);
+  }
+  Vec(Expression) parameters = res.val;
+  Token param = nextToken(it);
+  while (param.type != TokenType_CloseParen) {
+    if (param.type == TokenType_EOF) {
+      panic("parseExpression: Unclosed open paren");
+    }
+    Expression expr = parseExpression(ally, it, param);
+    Token paramSep = nextToken(it);
+    if (paramSep.type != TokenType_Comma &&
+        paramSep.type != TokenType_CloseParen) {
+      panic("parseExpression: Parameter list expression not followed by "
+            "comma or close paren ^");
+    }
+    if (!append(&parameters, Expression, &expr)) {
+      panic("Failed to append to parameter list");
+    }
+    if (paramSep.type == TokenType_CloseParen) {
+      break;
+    }
+    param = nextToken(it);
+  }
+  shrinkToLength(&parameters, Expression);
+  return parameters;
+}
 
 static inline Expression parseExpression(Allocator ally, TokenIterator *it,
                                          Token t) {
@@ -287,32 +348,7 @@ static inline Expression parseExpression(Allocator ally, TokenIterator *it,
     if (next.type == TokenType_OpenParen) {
       // call expression
       nextToken(it);
-      Result(Vec_Expression) res = createVec(ally, Expression, 1);
-      if (!res.ok) {
-        panic(res.err);
-      }
-      Vec(Expression) parameters = res.val;
-      Token param = nextToken(it);
-      while (param.type != TokenType_CloseParen) {
-        if (param.type == TokenType_EOF) {
-          panic("parseExpression: Unclosed open paren");
-        }
-        Expression expr = parseExpression(ally, it, param);
-        Token paramSep = nextToken(it);
-        if (paramSep.type != TokenType_Comma &&
-            paramSep.type != TokenType_CloseParen) {
-          panic("parseExpression: Parameter list expression not followed by "
-                "comma or close paren ^");
-        }
-        if (!append(&parameters, Expression, &expr)) {
-          panic("Failed to append to parameter list");
-        }
-        if (paramSep.type == TokenType_CloseParen) {
-          break;
-        }
-        param = nextToken(it);
-      }
-      shrinkToLength(&parameters, Expression);
+      Vec(Expression) parameters = parseParameters(ally, it);
 
       Result(Slice_Expression) callee_res = alloc(ally, Expression, 1);
       if (!callee_res.ok) {
@@ -332,8 +368,26 @@ static inline Expression parseExpression(Allocator ally, TokenIterator *it,
     // identifier expression
     return (Expression){.type = IdentifierExpression, .identifier = t.ident};
   }
+  case TokenType_OpenParen: {
+    Vec(Expression) parameters = parseParameters(ally, it);
+    Result(Slice_Statement) body_res = alloc(ally, Statement, 1);
+    if (!body_res.ok)
+      panic(body_res.err);
+    Statement *body = body_res.val.ptr;
+
+    *body = parseStatement(ally, it);
+    return (Expression){
+        .type = FunctionExpression,
+        .function_expression =
+            {
+                .parameters = parameters.slice.ptr,
+                .parameters_len = parameters.slice.len,
+                .body = body,
+            },
+    };
+
+  } break;
   case TokenType_EOF:
-  case TokenType_OpenParen:
   case TokenType_CloseParen:
   case TokenType_OpenCurly:
   case TokenType_CloseCurly:
@@ -433,6 +487,29 @@ static Statement parseStatement(Allocator ally, TokenIterator *it) {
       return s;
 
     } else if (t.type == TokenType_Ident &&
+               eql(t.ident, (Slice(char)){.ptr = "return", .len = 6})) {
+      if (peekToken(it).type == TokenType_Semi) {
+        nextToken(it);
+        return (Statement){
+            .type = ReturnStatement,
+            .return_statement = NULL,
+        };
+      }
+      Result(Slice_Expression) ret_expr = alloc(ally, Expression, 1);
+      if (!ret_expr.ok)
+        panic(ret_expr.err);
+      Expression *ret = ret_expr.val.ptr;
+      *ret = parseExpression(ally, it, nextToken(it));
+      Token semi = nextToken(it);
+      if (semi.type != TokenType_Semi) {
+        printToken(semi);
+        panic("\nparse: Unknown token following expression statement ^");
+      }
+      return (Statement){
+          .type = ReturnStatement,
+          .return_statement = ret,
+      };
+    } else if (t.type == TokenType_Ident &&
                peekToken(it).type == TokenType_Colon) {
       nextToken(it); // :
       Token afterColon = peekToken(it);
@@ -507,7 +584,7 @@ static Statement parseStatement(Allocator ally, TokenIterator *it) {
     Token closecurly = peekToken(it);
     if (closecurly.type != TokenType_CloseCurly) {
       printToken(closecurly);
-      printf("fart\n");
+      printf("\n");
       panic("\nparse: Unknown token following block ^");
     }
     nextToken(it); // }
