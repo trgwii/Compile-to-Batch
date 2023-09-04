@@ -56,9 +56,11 @@ typedef enum {
   InlineBatchStatement,
   BlockStatement,
   IfStatement,
+  WhileStatement,
 } StatementType;
 
 typedef struct If If;
+typedef struct While While;
 typedef struct Block Block;
 
 typedef struct {
@@ -69,6 +71,7 @@ typedef struct {
     Assignment assignment;
     Slice(char) inline_batch;
     If *if_statement;
+    While *while_statement;
     Block *block;
   };
 } Statement;
@@ -84,13 +87,19 @@ struct If {
   Statement *alternate;
 };
 
-DefSlice(If);
-DefResult(Slice_If);
+struct While {
+  Expression condition;
+  Statement *body;
+};
 
 struct Block {
   Slice(Statement) statements;
 };
 
+DefSlice(If);
+DefResult(Slice_If);
+DefSlice(While);
+DefResult(Slice_While);
 DefSlice(Block);
 DefResult(Slice_Block);
 
@@ -165,6 +174,12 @@ static void printStatement(Statement stmt) {
       fprintf(stdout, " else ");
       printStatement(*stmt.if_statement->alternate);
     }
+  } break;
+  case WhileStatement: {
+    fprintf(stdout, "While (");
+    printExpression(stmt.while_statement->condition);
+    fprintf(stdout, ") ");
+    printStatement(*stmt.while_statement->body);
   } break;
   case BlockStatement: {
     fprintf(stdout, "Block {\n");
@@ -343,31 +358,8 @@ static Statement parseStatement(Allocator ally, TokenIterator *it) {
   case TokenType_Ident:
   case TokenType_Number:
   case TokenType_String: {
-    if (t.type == TokenType_Ident && peekToken(it).type == TokenType_Colon) {
-      nextToken(it); // :
-      Token afterColon = peekToken(it);
-      if (afterColon.type != TokenType_Equal &&
-          afterColon.type != TokenType_Colon) {
-        printToken(peekToken(it));
-        panic("Invalid token following colon ^");
-      }
-      nextToken(it); // =
-      Expression value = parseExpression(ally, it, nextToken(it));
-
-      Statement decl_stmt = {
-          .type = DeclarationStatement,
-          .declaration = {.name = t.ident,
-                          .value = value,
-                          .constant = afterColon.type == TokenType_Colon},
-      };
-      Token semi = nextToken(it);
-      if (semi.type != TokenType_Semi) {
-        printToken(semi);
-        panic("\nparse: Unknown token following expression statement ^");
-      }
-      return decl_stmt;
-    } else if (t.type == TokenType_Ident &&
-               eql(t.ident, (Slice(char)){.ptr = "if", .len = 2})) {
+    if (t.type == TokenType_Ident &&
+        eql(t.ident, (Slice(char)){.ptr = "if", .len = 2})) {
       if (peekToken(it).type != TokenType_OpenParen) {
         panic("Missing ( after if");
       }
@@ -406,6 +398,59 @@ static Statement parseStatement(Allocator ally, TokenIterator *it) {
           .if_statement = if_statement,
       };
       return s;
+    } else if (t.type == TokenType_Ident &&
+               eql(t.ident, (Slice(char)){.ptr = "while", .len = 5})) {
+      if (peekToken(it).type != TokenType_OpenParen) {
+        panic("Missing ( after while");
+      }
+      nextToken(it); // (
+      Expression condition = parseExpression(ally, it, nextToken(it));
+      if (peekToken(it).type != TokenType_CloseParen) {
+        printToken(peekToken(it));
+        panic("\nMissing ) after while condition");
+      }
+      nextToken(it); // )
+      Result(Slice_While) while_res = alloc(ally, While, 1);
+      if (!while_res.ok)
+        panic(while_res.err);
+      While *while_statement = while_res.val.ptr;
+      Result(Slice_Statement) body_res = alloc(ally, Statement, 1);
+      if (!body_res.ok)
+        panic(body_res.err);
+      Statement *body = body_res.val.ptr;
+      *body = parseStatement(ally, it);
+      while_statement->condition = condition;
+      while_statement->body = body;
+      Statement s = {
+          .type = WhileStatement,
+          .while_statement = while_statement,
+      };
+      return s;
+
+    } else if (t.type == TokenType_Ident &&
+               peekToken(it).type == TokenType_Colon) {
+      nextToken(it); // :
+      Token afterColon = peekToken(it);
+      if (afterColon.type != TokenType_Equal &&
+          afterColon.type != TokenType_Colon) {
+        printToken(peekToken(it));
+        panic("Invalid token following colon ^");
+      }
+      nextToken(it); // =
+      Expression value = parseExpression(ally, it, nextToken(it));
+
+      Statement decl_stmt = {
+          .type = DeclarationStatement,
+          .declaration = {.name = t.ident,
+                          .value = value,
+                          .constant = afterColon.type == TokenType_Colon},
+      };
+      Token semi = nextToken(it);
+      if (semi.type != TokenType_Semi) {
+        printToken(semi);
+        panic("\nparse: Unknown token following expression statement ^");
+      }
+      return decl_stmt;
     } else if (t.type == TokenType_Ident &&
                peekToken(it).type == TokenType_Equal) {
       nextToken(it);

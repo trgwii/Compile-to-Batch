@@ -88,3 +88,11 @@ print(ding);
 if (ding) {
     print("Yuppers");
 }
+
+
+dong := 42;
+
+while (dong == 42) {
+    dong = dong + 1;
+    print(dong);
+}
