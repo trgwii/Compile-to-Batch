@@ -174,20 +174,29 @@ static void emitStatement(Statement stmt, Allocator ally,
       }
     }
     if (!name_exists && outer_assignments) {
-      Statement outer_stmt = {
-          .type = AssignmentStatement,
-          .assignment =
-              {
-                  .name = stmt.assignment.name,
-                  .value =
-                      {
-                          .type = IdentifierExpression,
-                          .identifier = stmt.assignment.name,
-                      },
-              },
-      };
-      if (!append(outer_assignments, Statement, &outer_stmt)) {
-        panic("Failed to append outer assignment");
+      bool exists = false;
+      for (size_t i = 0; i < outer_assignments->slice.len; i++) {
+        Statement outer = outer_assignments->slice.ptr[i];
+        if (eql(outer.assignment.name, stmt.assignment.name)) {
+          exists = true;
+        }
+      }
+      if (!exists) {
+        Statement outer_stmt = {
+            .type = AssignmentStatement,
+            .assignment =
+                {
+                    .name = stmt.assignment.name,
+                    .value =
+                        {
+                            .type = IdentifierExpression,
+                            .identifier = stmt.assignment.name,
+                        },
+                },
+        };
+        if (!append(outer_assignments, Statement, &outer_stmt)) {
+          panic("Failed to append outer assignment");
+        }
       }
     }
     appendManyCString(out, "\r\n");
