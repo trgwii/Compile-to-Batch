@@ -32,6 +32,7 @@ typedef enum {
   TokenType_String,
   TokenType_Colon,
   TokenType_Equal,
+  TokenType_Excl,
   TokenType_Star,
   TokenType_Plus,
   TokenType_Hyphen,
@@ -92,6 +93,9 @@ static void printToken(Token t) {
   } break;
   case TokenType_Equal: {
     printf("Equal");
+  } break;
+  case TokenType_Excl: {
+    printf("Excl");
   } break;
   case TokenType_Star: {
     printf("Star");
@@ -193,6 +197,8 @@ static Token nextToken(TokenIterator *it) {
     return (Token){.type = TokenType_Colon};
   case '=':
     return (Token){.type = TokenType_Equal};
+  case '!':
+    return (Token){.type = TokenType_Excl};
   case '*':
     return (Token){.type = TokenType_Star};
   case '+':

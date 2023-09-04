@@ -92,7 +92,9 @@ if (ding) {
 
 dong := 42;
 
-while (dong == 42) {
+while (dong != 50) {
+    bong := 42;
     dong = dong + 1;
-    print(dong);
+    bong = dong + 1;
+    print("dong", dong);
 }

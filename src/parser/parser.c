@@ -207,11 +207,12 @@ static inline Expression parseExpression(Allocator ally, TokenIterator *it,
   case TokenType_Number: {
     Token next = peekToken(it);
     if (next.type != TokenType_Star && next.type != TokenType_Plus &&
-        next.type != TokenType_Hyphen && next.type != TokenType_Slash &&
-        next.type != TokenType_Equal) {
+        next.type != TokenType_Excl && next.type != TokenType_Hyphen &&
+        next.type != TokenType_Slash && next.type != TokenType_Equal) {
       return (Expression){.type = NumericExpression, .number = t.number};
     }
-    if (nextToken(it).type == TokenType_Equal) { // op
+    nextToken(it);
+    if (next.type == TokenType_Equal || next.type == TokenType_Excl) { // op
       if (peekToken(it).type != TokenType_Equal) {
         panic("Invalid expression following <num> =");
       }
@@ -235,6 +236,7 @@ static inline Expression parseExpression(Allocator ally, TokenIterator *it,
                       : next.type == TokenType_Plus   ? '+'
                       : next.type == TokenType_Hyphen ? '-'
                       : next.type == TokenType_Equal  ? '=' // comparison
+                      : next.type == TokenType_Excl   ? '!'
                                                       : '/',
                 .left = left,
                 .right = right,
@@ -246,9 +248,10 @@ static inline Expression parseExpression(Allocator ally, TokenIterator *it,
   case TokenType_Ident: {
     Token next = peekToken(it);
     if (next.type == TokenType_Star || next.type == TokenType_Plus ||
-        next.type == TokenType_Hyphen || next.type == TokenType_Slash ||
-        next.type == TokenType_Equal) {
-      if (nextToken(it).type == TokenType_Equal) { // op
+        next.type == TokenType_Excl || next.type == TokenType_Hyphen ||
+        next.type == TokenType_Slash || next.type == TokenType_Equal) {
+      nextToken(it);
+      if (next.type == TokenType_Equal || next.type == TokenType_Excl) { // op
         if (peekToken(it).type != TokenType_Equal) {
           panic("Invalid expression following <num> =");
         }
@@ -274,6 +277,7 @@ static inline Expression parseExpression(Allocator ally, TokenIterator *it,
                         : next.type == TokenType_Plus   ? '+'
                         : next.type == TokenType_Hyphen ? '-'
                         : next.type == TokenType_Equal  ? '=' // comparison
+                        : next.type == TokenType_Excl   ? '!'
                                                         : '/',
                   .left = left,
                   .right = right,
@@ -337,6 +341,7 @@ static inline Expression parseExpression(Allocator ally, TokenIterator *it,
   case TokenType_Comma:
   case TokenType_Colon:
   case TokenType_Equal:
+  case TokenType_Excl:
   case TokenType_Star:
   case TokenType_Plus:
   case TokenType_Hyphen:
@@ -520,6 +525,7 @@ static Statement parseStatement(Allocator ally, TokenIterator *it) {
   case TokenType_Comma:
   case TokenType_Colon:
   case TokenType_Equal:
+  case TokenType_Excl:
   case TokenType_Star:
   case TokenType_Plus:
   case TokenType_Hyphen:

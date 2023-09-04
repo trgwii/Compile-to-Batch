@@ -1,6 +1,7 @@
 #include "../std/Vec.c"
 #include "../std/eql.c"
 #include "parser.c"
+#include "sema.c"
 #include <stdbool.h>
 #include <stdio.h>
 
@@ -41,9 +42,9 @@ static void emitExpression(Expression expr, StatementType parent,
   } break;
   case ArithmeticExpression: {
     if ((parent != DeclarationStatement && parent != AssignmentStatement &&
-         expr.arithmetic.op != '=') ||
+         expr.arithmetic.op != '=' && expr.arithmetic.op != '!') ||
         ((parent == DeclarationStatement || parent == AssignmentStatement) &&
-         expr.arithmetic.op == '=')) {
+         (expr.arithmetic.op == '=' || expr.arithmetic.op == '!'))) {
       // Create a temporary
       char temporary_string[128];
       int temporary_string_len =
@@ -56,7 +57,7 @@ static void emitExpression(Expression expr, StatementType parent,
         tmp_str.val.ptr[i] = temporary_string[i];
       }
       Statement temporary;
-      if (expr.arithmetic.op == '=') {
+      if (expr.arithmetic.op == '=' || expr.arithmetic.op == '!') {
         Result(Slice_If) if_res = alloc(ally, If, 1);
         if (!if_res.ok)
           panic(if_res.err);
@@ -97,19 +98,21 @@ static void emitExpression(Expression expr, StatementType parent,
           parent, ally, temporaries, out);
     } else {
       char quot = '"';
-      if (expr.arithmetic.op == '=') {
+      if (expr.arithmetic.op == '=' || expr.arithmetic.op == '!') {
         append(out, char, &quot);
       }
       emitExpression(*expr.arithmetic.left, BlockStatement, ally, temporaries,
                      out);
       if (expr.arithmetic.op == '=') {
         appendManyCString(out, "\"==\"");
+      } else if (expr.arithmetic.op == '!') {
+        appendManyCString(out, "\" NEQ \"");
       } else {
         append(out, char, &expr.arithmetic.op);
       }
       emitExpression(*expr.arithmetic.right, BlockStatement, ally, temporaries,
                      out);
-      if (expr.arithmetic.op == '=') {
+      if (expr.arithmetic.op == '=' || expr.arithmetic.op == '!') {
         append(out, char, &quot);
       }
     }
@@ -130,7 +133,9 @@ static Slice(char) trim(Slice(char) str) {
 
 static void emitStatement(Statement stmt, Allocator ally,
                           Vec(Statement) * temporaries, Vec(char) * out,
-                          size_t *branch_labels, size_t *loop_labels) {
+                          size_t *branch_labels, size_t *loop_labels,
+                          Vec(Binding) * names,
+                          Vec(Statement) * outer_assignments) {
   char equal = '=';
   switch (stmt.type) {
   case DeclarationStatement: {
@@ -143,6 +148,14 @@ static void emitStatement(Statement stmt, Allocator ally,
     append(out, char, &equal);
     emitExpression(stmt.declaration.value, DeclarationStatement, ally,
                    temporaries, out);
+    Binding binding = {
+        .name = stmt.declaration.name,
+        .constant = stmt.declaration.constant,
+        .read = false,
+    };
+    if (!append(names, Binding, &binding)) {
+      panic("Could not append name");
+    }
     appendManyCString(out, "\r\n");
   } break;
   case AssignmentStatement: {
@@ -154,6 +167,29 @@ static void emitStatement(Statement stmt, Allocator ally,
     append(out, char, &equal);
     emitExpression(stmt.assignment.value, AssignmentStatement, ally,
                    temporaries, out);
+    bool name_exists = false;
+    for (size_t i = 0; i < names->slice.len; i++) {
+      if (eql(names->slice.ptr[i].name, stmt.assignment.name)) {
+        name_exists = true;
+      }
+    }
+    if (!name_exists && outer_assignments) {
+      Statement outer_stmt = {
+          .type = AssignmentStatement,
+          .assignment =
+              {
+                  .name = stmt.assignment.name,
+                  .value =
+                      {
+                          .type = IdentifierExpression,
+                          .identifier = stmt.assignment.name,
+                      },
+              },
+      };
+      if (!append(outer_assignments, Statement, &outer_stmt)) {
+        panic("Failed to append outer assignment");
+      }
+    }
     appendManyCString(out, "\r\n");
   } break;
   case InlineBatchStatement: {
@@ -163,11 +199,31 @@ static void emitStatement(Statement stmt, Allocator ally,
   } break;
   case BlockStatement: {
     appendManyCString(out, "@setlocal EnableDelayedExpansion\r\n");
+    Result(Vec_Statement) new_outer_assignments_res =
+        createVec(ally, Statement, 1);
+    if (!new_outer_assignments_res.ok)
+      panic(new_outer_assignments_res.err);
+    Vec(Statement) new_outer_assignments = new_outer_assignments_res.val;
+    Result(Vec_Binding) block_names_res = createVec(ally, Binding, 8);
+    if (!block_names_res.ok)
+      panic(block_names_res.err);
+    Vec(Binding) block_names = block_names_res.val;
     for (size_t i = 0; i < stmt.block->statements.len; i++) {
       emitStatement(stmt.block->statements.ptr[i], ally, temporaries, out,
-                    branch_labels, loop_labels);
+                    branch_labels, loop_labels, &block_names,
+                    &new_outer_assignments);
     }
-    appendManyCString(out, "@endlocal\r\n");
+
+    appendManyCString(out, "@endlocal");
+    for (size_t i = 0; i < new_outer_assignments.slice.len; i++) {
+      Statement assignment = new_outer_assignments.slice.ptr[i];
+      appendManyCString(out, " && @set \"");
+      appendSlice(out, char, assignment.assignment.name);
+      appendManyCString(out, "=%");
+      appendSlice(out, char, assignment.assignment.value.identifier);
+      appendManyCString(out, "%\"");
+    }
+    appendManyCString(out, "\r\n");
   } break;
   case IfStatement: {
     char temporary_string[128];
@@ -187,7 +243,7 @@ static void emitStatement(Statement stmt, Allocator ally,
     appendSlice(out, char, branch_slice);
     appendManyCString(out, "\r\n");
     emitStatement(*stmt.if_statement->consequence, ally, temporaries, out,
-                  branch_labels, loop_labels);
+                  branch_labels, loop_labels, names, outer_assignments);
     appendManyCString(out, "@goto :");
     temporary_string_len =
         (size_t)sprintf(temporary_string, "_endif%lu_", branch_label);
@@ -204,7 +260,7 @@ static void emitStatement(Statement stmt, Allocator ally,
     appendManyCString(out, "\r\n");
     if (stmt.if_statement->alternate) {
       emitStatement(*stmt.if_statement->alternate, ally, temporaries, out,
-                    branch_labels, loop_labels);
+                    branch_labels, loop_labels, names, outer_assignments);
     }
     appendManyCString(out, ":");
     temporary_string_len =
@@ -238,7 +294,7 @@ static void emitStatement(Statement stmt, Allocator ally,
     appendSlice(out, char, loop_slice);
     appendManyCString(out, "\r\n");
     emitStatement(*stmt.while_statement->body, ally, temporaries, out,
-                  branch_labels, loop_labels);
+                  branch_labels, loop_labels, names, outer_assignments);
     appendManyCString(out, "@goto :");
     temporary_string_len =
         (size_t)sprintf(temporary_string, "_while%lu_", loop_label);
@@ -308,13 +364,18 @@ static void outputBatch(Program prog, Allocator ally, Vec(char) * out) {
   size_t branch_labels = 0;
   size_t loop_labels = 0;
 
+  Result(Vec_Binding) names_res = createVec(ally, Binding, 8);
+  if (!names_res.ok)
+    panic(names_res.err);
+  Vec(Binding) names = names_res.val;
+
   for (size_t i = 0; i < prog.statements.len; i++) {
     Statement stmt = prog.statements.ptr[i];
     emitStatement(stmt, ally, &temporaries.val, &buffered.val, &branch_labels,
-                  &loop_labels);
+                  &loop_labels, &names, NULL);
     for (size_t j = 0; j < temporaries.val.slice.len; j++) {
       emitStatement(temporaries.val.slice.ptr[j], ally, &temporaries.val, out,
-                    &branch_labels, &loop_labels);
+                    &branch_labels, &loop_labels, &names, NULL);
     }
     temporaries.val.slice.len = 0;
     appendSlice(out, char, buffered.val.slice);

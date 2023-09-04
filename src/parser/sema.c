@@ -1,3 +1,6 @@
+#ifndef SEMA_H
+#define SEMA_H
+
 #include "../std/Allocator.c"
 #include "../std/eql.c"
 #include "parser.c"
@@ -131,3 +134,4 @@ static void analyze(Allocator ally, Program prog) {
     }
   }
 }
+#endif /* SEMA_H */
