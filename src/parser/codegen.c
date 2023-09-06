@@ -145,8 +145,8 @@ static void emitExpression(Expression expr, StatementType parent,
       if (expr.arithmetic.op == '=' || expr.arithmetic.op == '!') {
         append(out, char, &quot);
       }
-      emitExpression(*expr.arithmetic.left, BlockStatement, ally, temporaries,
-                     out, call_labels);
+      emitExpression(*expr.arithmetic.left, DeclarationStatement, ally,
+                     temporaries, out, call_labels);
       if (expr.arithmetic.op == '=') {
         appendManyCString(out, "\"==\"");
       } else if (expr.arithmetic.op == '!') {
@@ -154,8 +154,8 @@ static void emitExpression(Expression expr, StatementType parent,
       } else {
         append(out, char, &expr.arithmetic.op);
       }
-      emitExpression(*expr.arithmetic.right, BlockStatement, ally, temporaries,
-                     out, call_labels);
+      emitExpression(*expr.arithmetic.right, DeclarationStatement, ally,
+                     temporaries, out, call_labels);
       if (expr.arithmetic.op == '=' || expr.arithmetic.op == '!') {
         append(out, char, &quot);
       }
@@ -488,6 +488,40 @@ static void emitStatement(Statement stmt, Allocator ally,
   }
 }
 
+// static inline void emitTemporaries(Allocator ally, Vec(Statement) *
+// temporaries,
+//                                    Vec(char) * out, size_t *branch_labels,
+//                                    size_t *loop_labels, size_t *call_labels,
+//                                    Vec(Binding) * names,
+//                                    Vec(char) * functions) {
+//   for (size_t i = 0; i < temporaries->slice.len; i++) {
+//     Result(Vec_char) buffered = createVec(ally, char, 32);
+//     if (!buffered.ok)
+//       panic(buffered.err);
+//     size_t before = temporaries->slice.len;
+//     emitStatement(temporaries->slice.ptr[i], ally, temporaries,
+//     &buffered.val,
+//                   branch_labels, loop_labels, call_labels, names, NULL,
+//                   functions);
+//     if (before != temporaries->slice.len) {
+//       Vec(Statement) next_temporaries = {
+//           .slice =
+//               {
+//                   .ptr = temporaries->slice.ptr + before,
+//                   .len = temporaries->slice.len - before,
+//               },
+//           .ally = ally,
+//           .cap = temporaries->cap - before,
+//       };
+//       emitTemporaries(ally, &next_temporaries, out, branch_labels,
+//       loop_labels,
+//                       call_labels, names, functions);
+//       temporaries->cap = next_temporaries.cap + before;
+//     }
+//     appendSlice(out, char, buffered.val.slice);
+//   }
+// }
+
 static void outputBatch(Program prog, Allocator ally, Vec(char) * out) {
   (void)ally;
   appendManyCString(out, "@setlocal EnableDelayedExpansion\r\n");
@@ -520,6 +554,9 @@ static void outputBatch(Program prog, Allocator ally, Vec(char) * out) {
     Statement stmt = prog.statements.ptr[i];
     emitStatement(stmt, ally, &temporaries.val, &buffered.val, &branch_labels,
                   &loop_labels, &call_labels, &names, NULL, &functions);
+    // emitTemporaries(ally, &temporaries.val, out, &branch_labels,
+    // &loop_labels,
+    //                 &call_labels, &names, &functions);
     for (size_t j = 0; j < temporaries.val.slice.len; j++) {
       emitStatement(temporaries.val.slice.ptr[j], ally, &temporaries.val, out,
                     &branch_labels, &loop_labels, &call_labels, &names, NULL,
