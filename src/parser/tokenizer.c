@@ -210,9 +210,9 @@ static Token nextToken(TokenIterator *it) {
   }
 
   // keywords / identifiers
-  if (isalpha(c)) {
+  if (isalpha(c) || c == '_') {
     size_t start = it->cur - 1;
-    while (isalpha(c)) {
+    while (c == '_' || isalpha(c) || isdigit(c)) {
       if (tokenizerEnded(it)) {
         break;
       }
