@@ -342,8 +342,10 @@ static void emitStatement(Statement stmt, Allocator ally,
                    out, call_labels);
 
     appendManyCString(out, " goto :");
-    temporary_string_len =
-        (size_t)sprintf(temporary_string, "_else%lu_", branch_label);
+    temporary_string_len = (size_t)sprintf(
+        temporary_string,
+        stmt.if_statement->alternate ? "_else%lu_" : "_endif%lu_",
+        branch_label);
     branch_slice =
         (Slice(char)){.ptr = temporary_string, .len = temporary_string_len};
     appendSlice(out, char, branch_slice);
@@ -358,14 +360,14 @@ static void emitStatement(Statement stmt, Allocator ally,
         (Slice(char)){.ptr = temporary_string, .len = temporary_string_len};
     appendSlice(out, char, branch_slice);
     appendManyCString(out, "\r\n");
-    appendManyCString(out, ":");
-    temporary_string_len =
-        (size_t)sprintf(temporary_string, "_else%lu_", branch_label);
-    branch_slice =
-        (Slice(char)){.ptr = temporary_string, .len = temporary_string_len};
-    appendSlice(out, char, branch_slice);
-    appendManyCString(out, "\r\n");
     if (stmt.if_statement->alternate) {
+      appendManyCString(out, ":");
+      temporary_string_len =
+          (size_t)sprintf(temporary_string, "_else%lu_", branch_label);
+      branch_slice =
+          (Slice(char)){.ptr = temporary_string, .len = temporary_string_len};
+      appendSlice(out, char, branch_slice);
+      appendManyCString(out, "\r\n");
       emitStatement(*stmt.if_statement->alternate, ally, temporaries, out,
                     branch_labels, loop_labels, call_labels, names,
                     outer_assignments, functions);
