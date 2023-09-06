@@ -246,14 +246,28 @@ static Token nextToken(TokenIterator *it) {
       while (true) {
         c = nextChar(it);
         if (tokenizerEnded(it)) {
-          panic("Unclosed batch statement (1)");
+          return (Token){
+              .type = TokenType_InlineBatch,
+              .inline_batch =
+                  {
+                      .ptr = it->data.ptr + body_start,
+                      .len = it->cur - body_start - bracket_len,
+                  },
+          };
         }
         if (c == '}') {
           bool ended = true;
           for (size_t i = 0; i < bracket_len - 1; i++) {
             c = nextChar(it);
             if (tokenizerEnded(it)) {
-              panic("Unclosed batch statement (2)");
+              return (Token){
+                  .type = TokenType_InlineBatch,
+                  .inline_batch =
+                      {
+                          .ptr = it->data.ptr + body_start,
+                          .len = it->cur - body_start - bracket_len,
+                      },
+              };
             }
             if (c != '}') {
               ended = false;
