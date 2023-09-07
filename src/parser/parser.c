@@ -269,7 +269,8 @@ static inline Expression parseExpression(Allocator ally, TokenIterator *it,
     Token next = peekToken(it);
     if (next.type != TokenType_Star && next.type != TokenType_Plus &&
         next.type != TokenType_Excl && next.type != TokenType_Hyphen &&
-        next.type != TokenType_Slash && next.type != TokenType_Equal) {
+        next.type != TokenType_Slash && next.type != TokenType_Percent &&
+        next.type != TokenType_Equal) {
       return (Expression){.type = NumericExpression, .number = t.number};
     }
     nextToken(it);
@@ -293,12 +294,13 @@ static inline Expression parseExpression(Allocator ally, TokenIterator *it,
         .type = ArithmeticExpression,
         .arithmetic =
             {
-                .op = next.type == TokenType_Star     ? '*'
-                      : next.type == TokenType_Plus   ? '+'
-                      : next.type == TokenType_Hyphen ? '-'
-                      : next.type == TokenType_Equal  ? '=' // comparison
-                      : next.type == TokenType_Excl   ? '!'
-                                                      : '/',
+                .op = next.type == TokenType_Star      ? '*'
+                      : next.type == TokenType_Plus    ? '+'
+                      : next.type == TokenType_Hyphen  ? '-'
+                      : next.type == TokenType_Equal   ? '=' // comparison
+                      : next.type == TokenType_Excl    ? '!'
+                      : next.type == TokenType_Percent ? '%'
+                                                       : '/',
                 .left = left,
                 .right = right,
             },
@@ -310,7 +312,8 @@ static inline Expression parseExpression(Allocator ally, TokenIterator *it,
     Token next = peekToken(it);
     if (next.type == TokenType_Star || next.type == TokenType_Plus ||
         next.type == TokenType_Excl || next.type == TokenType_Hyphen ||
-        next.type == TokenType_Slash || next.type == TokenType_Equal) {
+        next.type == TokenType_Slash || next.type == TokenType_Percent ||
+        next.type == TokenType_Equal) {
       nextToken(it);
       if (next.type == TokenType_Equal || next.type == TokenType_Excl) { // op
         if (peekToken(it).type != TokenType_Equal) {
@@ -334,12 +337,13 @@ static inline Expression parseExpression(Allocator ally, TokenIterator *it,
           .type = ArithmeticExpression,
           .arithmetic =
               {
-                  .op = next.type == TokenType_Star     ? '*'
-                        : next.type == TokenType_Plus   ? '+'
-                        : next.type == TokenType_Hyphen ? '-'
-                        : next.type == TokenType_Equal  ? '=' // comparison
-                        : next.type == TokenType_Excl   ? '!'
-                                                        : '/',
+                  .op = next.type == TokenType_Star      ? '*'
+                        : next.type == TokenType_Plus    ? '+'
+                        : next.type == TokenType_Hyphen  ? '-'
+                        : next.type == TokenType_Equal   ? '=' // comparison
+                        : next.type == TokenType_Excl    ? '!'
+                        : next.type == TokenType_Percent ? '%'
+                                                         : '/',
                   .left = left,
                   .right = right,
               },
@@ -400,6 +404,7 @@ static inline Expression parseExpression(Allocator ally, TokenIterator *it,
   case TokenType_Plus:
   case TokenType_Hyphen:
   case TokenType_Slash:
+  case TokenType_Percent:
   case TokenType_InlineBatch:
   case TokenType_Unknown: {
     printToken(t);
@@ -607,6 +612,7 @@ static Statement parseStatement(Allocator ally, TokenIterator *it) {
   case TokenType_Plus:
   case TokenType_Hyphen:
   case TokenType_Slash:
+  case TokenType_Percent:
   case TokenType_Unknown: {
     *it = snapshot; // restore
     return (Statement){.type = StatementEOF};

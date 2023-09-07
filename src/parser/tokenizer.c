@@ -37,6 +37,7 @@ typedef enum {
   TokenType_Plus,
   TokenType_Hyphen,
   TokenType_Slash,
+  TokenType_Percent,
   TokenType_InlineBatch,
   TokenType_Unknown,
 } TokenType;
@@ -107,6 +108,9 @@ static void printToken(Token t) {
     printf("Hyphen");
   } break;
   case TokenType_Slash: {
+    printf("Slash");
+  } break;
+  case TokenType_Percent: {
     printf("Slash");
   } break;
   case TokenType_InlineBatch: {
@@ -207,6 +211,8 @@ static Token nextToken(TokenIterator *it) {
     return (Token){.type = TokenType_Hyphen};
   case '/':
     return (Token){.type = TokenType_Slash};
+  case '%':
+    return (Token){.type = TokenType_Percent};
   }
 
   // keywords / identifiers

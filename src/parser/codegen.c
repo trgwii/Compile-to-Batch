@@ -38,7 +38,6 @@ static void emitExpression(Expression expr, StatementType parent,
     }
   } break;
   case CallExpression: {
-    // TODO: emit arguments properly
     Result(Vec_char) call_res = createVec(ally, char, 32);
     if (!call_res.ok)
       panic(call_res.err);
@@ -151,6 +150,8 @@ static void emitExpression(Expression expr, StatementType parent,
         appendManyCString(out, "\"==\"");
       } else if (expr.arithmetic.op == '!') {
         appendManyCString(out, "\" NEQ \"");
+      } else if (expr.arithmetic.op == '%') {
+        appendManyCString(out, "%%");
       } else {
         append(out, char, &expr.arithmetic.op);
       }
@@ -464,11 +465,20 @@ static void emitStatement(Statement stmt, Allocator ally,
         }
         appendManyCString(out, "\r\n");
       } else {
-        // TODO: call label
-        fprintf(stdout, "unknown function: ");
-        fprintf(stdout, "%1.*s", (int)expr.call.callee->identifier.len,
-                expr.call.callee->identifier.ptr);
-        fprintf(stdout, "\n");
+        Result(Vec_char) call_res = createVec(ally, char, 32);
+        if (!call_res.ok)
+          panic(call_res.err);
+        Vec(char) call = call_res.val;
+        appendManyCString(&call, "@call :");
+        appendSlice(&call, char, expr.call.callee->identifier);
+        for (size_t i = 0; i < expr.call.parameters_len; i++) {
+          appendManyCString(&call, " ");
+          Expression param = expr.call.parameters[i];
+          emitExpression(param, ExpressionStatement, ally, temporaries, &call,
+                         call_labels);
+        }
+        appendManyCString(&call, "\r\n");
+        appendSlice(out, char, call.slice);
       }
     } break;
     case IdentifierExpression:
