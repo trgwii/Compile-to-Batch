@@ -8,10 +8,19 @@
 #include "parser/sema.c"
 #include "parser/tokenizer.c"
 #include "std/Allocator.c"
+
+#ifdef BUILDING_WITH_ZIG
+extern __attribute__((noreturn)) void panic(const char *msg);
+#else
 #include "std/panic.c"
+#endif
+
 #include "std/readFile.c"
 #include "std/writeAll.c"
 
+#ifdef BUILDING_WITH_ZIG
+extern void printSize(size_t bytes);
+#else
 static void printSize(size_t bytes) {
   if (bytes >= 1024 * 1024) {
     printf("%.2fMiB", (double)bytes / (1024 * 1024));
@@ -23,7 +32,11 @@ static void printSize(size_t bytes) {
   }
   printf("%luB", bytes);
 }
+#endif
 
+#ifdef BUILDING_WITH_ZIG
+extern bool startsWith(char *haystack, char *needle);
+#else
 static bool startsWith(char *haystack, char *needle) {
   while (*haystack && *needle) {
     if (*haystack++ != *needle++)
@@ -31,6 +44,12 @@ static bool startsWith(char *haystack, char *needle) {
   }
   return *needle == 0;
 }
+#endif
+
+#ifdef BUILDING_WITH_ZIG
+extern size_t str_len(char *s);
+#define strlen str_len
+#endif
 
 int main(int argc, char **argv, char **envp) {
   bool noColor = false;
