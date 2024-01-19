@@ -57,6 +57,9 @@ typedef struct {
   };
 } Token;
 
+#ifdef BUILDING_WITH_ZIG
+extern void printToken(Token t);
+#else
 static void printToken(Token t) {
   switch (t.type) {
   case TokenType_EOF: {
@@ -111,7 +114,7 @@ static void printToken(Token t) {
     printf("Slash");
   } break;
   case TokenType_Percent: {
-    printf("Slash");
+    printf("Percent");
   } break;
   case TokenType_InlineBatch: {
     printf("Batch {%1.*s}", (int)t.inline_batch.len, t.inline_batch.ptr);
@@ -122,6 +125,7 @@ static void printToken(Token t) {
   } break;
   }
 }
+#endif
 
 static void updateLocationInfo(TokenIterator *it, char c) {
   if (c == '\n') {

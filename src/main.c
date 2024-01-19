@@ -11,12 +11,13 @@
 
 #ifdef BUILDING_WITH_ZIG
 extern __attribute__((noreturn)) void panic(const char *msg);
+extern Result(Slice_char) readFile(Allocator ally, const char *path);
+extern void writeAll(FILE *f, Slice(char) str);
 #else
 #include "std/panic.c"
-#endif
-
 #include "std/readFile.c"
 #include "std/writeAll.c"
+#endif
 
 #ifdef BUILDING_WITH_ZIG
 extern void printSize(size_t bytes);
@@ -111,8 +112,10 @@ int main(int argc, char **argv, char **envp) {
       if (++nl >= 4) {
         nl = 0;
         fprintf(stdout, "\n");
+        fflush(stdout);
       } else {
         fprintf(stdout, "%s,\t%s", gray, green);
+        fflush(stdout);
       }
     }
   }
@@ -153,10 +156,13 @@ int main(int argc, char **argv, char **envp) {
   fprintf(stdout, "%s--- /CODEGEN ---\n", gray);
 
   fprintf(stdout, "%sMemory usage: ", cyan);
+  fflush(stdout);
   printSize(state.cur);
   fprintf(stdout, " / ");
+  fflush(stdout);
   printSize(state.mem.len);
   fprintf(stdout, "%s\n", reset);
+  fflush(stdout);
 
   resizeAllocation(ally, char, &data, 0);
 
