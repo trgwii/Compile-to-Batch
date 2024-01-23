@@ -4,9 +4,12 @@ comptime {
     std.testing.refAllDecls(@import("std/panic.zig"));
     std.testing.refAllDecls(@import("std/readAllAlloc.zig"));
     std.testing.refAllDecls(@import("std/readFile.zig"));
+    std.testing.refAllDecls(@import("std/Vec.zig"));
     std.testing.refAllDecls(@import("std/writeAll.zig"));
 
     std.testing.refAllDecls(@import("parser/tokenizer.zig"));
+    std.testing.refAllDecls(@import("parser/parser.zig"));
+    std.testing.refAllDecls(@import("parser/sema.zig"));
 }
 
 export fn setup_fault_handlers() void {

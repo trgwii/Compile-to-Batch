@@ -22,6 +22,13 @@ DefSlice(Slice_char);
 DefVec(Slice_char);
 DefResult(Vec_Slice_char);
 
+#ifdef BUILDING_WITH_ZIG
+extern bool append_(Vec(void) * v, size_t size, void *item);
+extern bool appendMany_(Vec(void) * v, size_t size, void *items,
+                        size_t items_len);
+extern Result(Vec_void) createVec_(Allocator ally, size_t size, size_t cap);
+extern void shrinkToLength_(Vec(void) * v, size_t size);
+#else
 static bool append_(Vec(void) * v, size_t size, void *item) {
   if (v->slice.len >= v->cap) {
     Slice(void) allocated = {
@@ -44,9 +51,6 @@ static bool append_(Vec(void) * v, size_t size, void *item) {
   return true;
 }
 
-#define append(v, T, item)                                                     \
-  append_(cast(v, Vec(T) *, Vec(void) *), sizeof(T), cast(item, T *, void *))
-
 static bool appendMany_(Vec(void) * v, size_t size, void *items,
                         size_t items_len) {
   for (size_t i = 0; i < items_len; i++) {
@@ -56,14 +60,6 @@ static bool appendMany_(Vec(void) * v, size_t size, void *items,
   }
   return true;
 }
-
-#define appendMany(v, T, items, items_len)                                     \
-  appendMany_(cast(v, Vec(T) *, Vec(void) *), sizeof(T),                       \
-              cast(items, T *, void *), items_len)
-
-#define appendSlice(v, T, items) appendMany(v, T, items.ptr, items.len)
-
-#define appendManyCString(v, items) appendMany(v, char, items, strlen(items))
 
 static Result(Vec_void) createVec_(Allocator ally, size_t size, size_t cap) {
   Result(Slice_void) res = alloc_(ally, size, cap);
@@ -82,9 +78,6 @@ static Result(Vec_void) createVec_(Allocator ally, size_t size, size_t cap) {
   return Result_Ok(Vec_void, v);
 }
 
-#define createVec(ally, T, cap)                                                \
-  cast(createVec_(ally, sizeof(T), cap), Result(Vec_void), Result(Vec_##T))
-
 static void shrinkToLength_(Vec(void) * v, size_t size) {
   Slice(void) allocation = {
       .ptr = v->slice.ptr,
@@ -94,6 +87,21 @@ static void shrinkToLength_(Vec(void) * v, size_t size) {
   v->slice.ptr = allocation.ptr;
   v->cap = allocation.len;
 }
+#endif
+
+#define append(v, T, item)                                                     \
+  append_(cast(v, Vec(T) *, Vec(void) *), sizeof(T), cast(item, T *, void *))
+
+#define appendMany(v, T, items, items_len)                                     \
+  appendMany_(cast(v, Vec(T) *, Vec(void) *), sizeof(T),                       \
+              cast(items, T *, void *), items_len)
+
+#define appendSlice(v, T, items) appendMany(v, T, items.ptr, items.len)
+
+#define appendManyCString(v, items) appendMany(v, char, items, strlen(items))
+
+#define createVec(ally, T, cap)                                                \
+  cast(createVec_(ally, sizeof(T), cap), Result(Vec_void), Result(Vec_##T))
 
 #define shrinkToLength(v, T)                                                   \
   shrinkToLength_(cast(v, Vec(T) *, Vec(void) *), sizeof(T))

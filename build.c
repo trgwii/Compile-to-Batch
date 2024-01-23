@@ -1,4 +1,10 @@
+#ifdef BUILDING_WITH_ZIG
+#undef BUILDING_WITH_ZIG
 #include "src/std/eql.c"
+#define BUILDING_WITH_ZIG
+#else
+#include "src/std/eql.c"
+#endif
 #include <stdlib.h>
 #include <string.h>
 
@@ -19,6 +25,10 @@ bool releaseMode(int argc, char **argv) {
 }
 
 int main(int argc, char **argv) {
+#ifdef BUILDING_WITH_ZIG
+  if (system("zig build"))
+    exit(1);
+#endif
   if (system("zig cc"
              " -Wall"
              " -Wextra"
@@ -34,19 +44,48 @@ int main(int argc, char **argv) {
              // Weird Windows thing
              " -Wno-used-but-marked-unused"
 #endif
-             " -o " OUT " src/main.c"))
+             " -o " OUT
+#ifdef BUILDING_WITH_ZIG
+             " -DBUILDING_WITH_ZIG"
+#ifdef _WIN32
+             " zig-out/lib/bc.lib"
+#else
+             " zig-out/lib/libbc.a"
+#endif
+#endif
+             " src/main.c"))
     exit(1);
   if (releaseMode(argc, argv)) {
+#ifdef BUILDING_WITH_ZIG
+    if (system("zig build -Doptimize=ReleaseFast -Dtarget=x86_64-windows"))
+      exit(1);
+#endif
     if (system("zig cc"
                " -O2"
                " -target x86_64-windows"
                " -Wno-single-bit-bitfield-constant-conversion"
-               " -o bin/bc.exe src/main.c"))
+               " -o bin/bc.exe"
+#ifdef BUILDING_WITH_ZIG
+               " -DBUILDING_WITH_ZIG"
+               " zig-out/lib/bc.lib"
+#endif
+
+               " src/main.c"))
       exit(1);
+#ifdef BUILDING_WITH_ZIG
+    if (system("zig build -Doptimize=ReleaseFast -Dtarget=x86_64-linux-musl"))
+      exit(1);
+#endif
     if (system("zig cc"
                " -O2"
                " -target x86_64-linux-musl"
-               " -o bin/bc src/main.c"))
+               " -o bin/bc"
+#ifdef BUILDING_WITH_ZIG
+               " -DBUILDING_WITH_ZIG"
+               " zig-out/lib/libbc.a"
+#endif
+
+               " src/main.c"))
       exit(1);
   }
   if (system(OUT " main.bb main.cmd"))

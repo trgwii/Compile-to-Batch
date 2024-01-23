@@ -112,8 +112,11 @@ DefResult(Slice_While);
 DefSlice(Block);
 DefResult(Slice_Block);
 
+#ifdef BUILDING_WITH_ZIG
+extern void printExpression(Expression expr);
+extern void printStatement(Statement stmt);
+#else
 static void printStatement(Statement stmt);
-
 static void printExpression(Expression expr) {
   fprintf(stdout, "Expr:");
   switch (expr.type) {
@@ -223,6 +226,7 @@ static void printStatement(Statement stmt) {
   } break;
   }
 }
+#endif
 
 typedef struct {
   Slice(Statement) statements;

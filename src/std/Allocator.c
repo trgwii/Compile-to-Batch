@@ -76,7 +76,7 @@ static void *bumpRealloc(void *ptr, size_t size, size_t old_size, void *state) {
   }
   if (ptr != NULL && bump->mem.ptr + bump->cur - old_size != (char *)ptr) {
     // moving resize
-    // printf("(moving resize %lu -> %lu)\n", old_size, size);
+    // printf("(moving resize %zu -> %zu)\n", old_size, size);
     void *new_ptr = bumpRealloc(NULL, size, 0, state);
     if (!new_ptr)
       return NULL;

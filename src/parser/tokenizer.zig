@@ -1,7 +1,7 @@
 const std = @import("std");
 const Slice = @import("../std/Slice.zig").Slice;
 
-const TokenIterator = extern struct {
+pub const TokenIterator = extern struct {
     data: Slice(u8),
     cur: usize = 0,
     line: usize = 1,
@@ -31,7 +31,7 @@ const TokenType = enum(c_int) {
     unknown,
 };
 
-const Token = extern struct {
+pub const Token = extern struct {
     tag: TokenType,
     x: extern union {
         ident: Slice(u8),

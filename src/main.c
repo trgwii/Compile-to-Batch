@@ -31,7 +31,7 @@ static void printSize(size_t bytes) {
     printf("%.2fKiB", (double)bytes / 1024);
     return;
   }
-  printf("%luB", bytes);
+  printf("%zuB", bytes);
 }
 #endif
 
