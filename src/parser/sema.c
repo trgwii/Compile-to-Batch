@@ -139,7 +139,7 @@ static void analyzeStatement(Vec(Binding) * names, Statement stmt) {
   } break;
   case ReturnStatement: {
     if (stmt.return_statement)
-      (names->ally, names->slice, *stmt.return_statement);
+      analyzeExpression(names->ally, names->slice, *stmt.return_statement);
   } break;
   case InlineBatchStatement: {
   } break;
