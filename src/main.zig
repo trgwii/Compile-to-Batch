@@ -9,6 +9,10 @@ comptime {
     std.testing.refAllDecls(@import("parser/tokenizer.zig"));
 }
 
+export fn setup_fault_handlers() void {
+    std.debug.maybeEnableSegfaultHandler();
+}
+
 export fn printSize(bytes: usize) void {
     const out = std.io.getStdOut().writer();
     const fBytes: f64 = @floatFromInt(bytes);

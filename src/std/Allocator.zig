@@ -33,7 +33,7 @@ pub export fn resizeAllocation_(
         size * allocation.len,
         ally.state,
     );
-    if (ptr == null and new_length != 0) return;
+    if (ptr == null) return;
     allocation.ptr = @ptrCast(ptr.?);
     allocation.len = new_length;
 }
@@ -60,12 +60,13 @@ export fn bumpRealloc(ptr: ?*anyopaque, size: usize, old_size: usize, state: ?*a
         return new_ptr;
     }
 
-    const Align = (8 - ((@intFromPtr(bump.mem.ptr) - bump.cur) % 8)) % 8;
+    const Align = (8 - ((@intFromPtr(bump.mem.ptr) + bump.cur) % 8)) % 8;
     if (bump.cur - old_size + size + Align > bump.mem.len) {
         // OOM
         return null;
     }
     const result = bump.mem.ptr + bump.cur - old_size + Align;
+    // TODO: overflows / underflows are iffy, think about this more
     bump.cur +%= size -% old_size + Align;
     return result;
 }

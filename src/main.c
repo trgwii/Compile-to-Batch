@@ -53,6 +53,10 @@ extern size_t str_len(char *s);
 #endif
 
 int main(int argc, char **argv, char **envp) {
+#ifdef BUILDING_WITH_ZIG
+  extern void setup_fault_handlers(void);
+  setup_fault_handlers();
+#endif
   bool noColor = false;
   while (*envp) {
     char *str = *envp;

@@ -8,17 +8,6 @@
 #include <stdbool.h>
 #include <stddef.h>
 
-typedef struct {
-  Slice(char) data;
-  size_t cur;
-  size_t line;
-  size_t col;
-} TokenIterator;
-
-static TokenIterator tokenizer(Slice(char) data) {
-  return (TokenIterator){.data = data, .cur = 0, .line = 1, .col = 1};
-}
-
 typedef enum {
   TokenType_EOF = 0,
   TokenType_Ident,
@@ -58,8 +47,30 @@ typedef struct {
 } Token;
 
 #ifdef BUILDING_WITH_ZIG
+typedef struct {
+  char opaque_[40];
+} TokenIterator;
+extern TokenIterator tokenizer(Slice(char) data);
 extern void printToken(Token t);
+extern void updateLocationInfo(TokenIterator *it, char c);
+extern bool tokenizerEnded(TokenIterator *it);
+extern void resetTokenizer(TokenIterator *it);
+extern char nextChar(TokenIterator *it);
+extern char skipWhitespace(TokenIterator *it, char c);
+extern Token nextToken(TokenIterator *it);
+extern Token peekToken(TokenIterator *it);
 #else
+typedef struct {
+  Slice(char) data;
+  size_t cur;
+  size_t line;
+  size_t col;
+} TokenIterator;
+
+static TokenIterator tokenizer(Slice(char) data) {
+  return (TokenIterator){.data = data, .cur = 0, .line = 1, .col = 1};
+}
+
 static void printToken(Token t) {
   switch (t.type) {
   case TokenType_EOF: {
@@ -125,7 +136,6 @@ static void printToken(Token t) {
   } break;
   }
 }
-#endif
 
 static void updateLocationInfo(TokenIterator *it, char c) {
   if (c == '\n') {
@@ -361,5 +371,6 @@ static Token peekToken(TokenIterator *it) {
   it->col = col;
   return t;
 }
+#endif
 
 #endif /* TOKENIZER_H */

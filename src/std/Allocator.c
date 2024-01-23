@@ -44,7 +44,7 @@ static void resizeAllocation_(Allocator ally, Slice(void) * allocation,
                               size_t size, size_t new_length) {
   void *ptr = ally.realloc(allocation->ptr, size * new_length,
                            size * allocation->len, ally.state);
-  if (!ptr && new_length) {
+  if (!ptr) {
     return;
   }
   allocation->ptr = ptr;
