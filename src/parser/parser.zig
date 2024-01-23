@@ -92,6 +92,7 @@ const Block = extern struct {
 };
 
 extern "c" fn fprintf(noalias stream: *std.c.FILE, [*:0]const u8, ...) c_int;
+// TODO: Fix on Windows
 extern "c" const stdout: *std.c.FILE;
 
 pub export fn printExpression(expr: Expression) void {

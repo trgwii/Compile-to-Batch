@@ -19,6 +19,7 @@ pub export fn nameListHasString(list: Slice(Binding), string: Slice(u8)) bool {
 }
 
 extern "c" fn fprintf(noalias stream: *std.c.FILE, [*:0]const u8, ...) c_int;
+// TODO: Fix on Windows
 extern "c" const stdout: *std.c.FILE;
 
 pub export fn analyzeExpression(ally: Allocator, names: Slice(Binding), expr: p.Expression) void {
