@@ -62,7 +62,7 @@ pub export fn printToken(t: Token) void {
         .closeCurly => out.writeAll("CloseCurly"),
         .semi => out.writeAll("Semi"),
         .comma => out.writeAll("Comma"),
-        .string => out.print("String({s})", .{t.x.string.ptr[0..t.x.string.len]}),
+        .string => out.print("String(\"{s}\")", .{t.x.string.ptr[0..t.x.string.len]}),
         .colon => out.writeAll("Colon"),
         .equal => out.writeAll("Equal"),
         .excl => out.writeAll("Excl"),

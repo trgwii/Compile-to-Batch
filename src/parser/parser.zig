@@ -3,7 +3,8 @@ const builtin = @import("builtin");
 const vec = @import("../std/Vec.zig");
 const Vec = vec.Vec;
 const Slice = @import("../std/Slice.zig").Slice;
-const Allocator = @import("../std/Allocator.zig").Allocator;
+const alloc = @import("../std/Allocator.zig");
+const Allocator = alloc.Allocator;
 const tok = @import("tokenizer.zig");
 const TokenIterator = tok.TokenIterator;
 
@@ -74,7 +75,7 @@ pub const Statement = extern struct {
         @"while": *While,
         block: *Block,
         @"return": ?*Expression,
-    },
+    } = undefined,
 };
 
 const If = extern struct {
@@ -122,10 +123,10 @@ pub export fn printExpression(expr: Expression) void {
             _ = fprintf(stdout, "Ident(%1.*s)", expr.x.identifier.len, expr.x.identifier.ptr);
         },
         .numeric => {
-            _ = fprintf(stdout, "Number(%1.%s)", expr.x.number.len, expr.x.number.ptr);
+            _ = fprintf(stdout, "Number(%1.*s)", expr.x.number.len, expr.x.number.ptr);
         },
         .string => {
-            _ = fprintf(stdout, "String(%1.%s)", expr.x.string.len, expr.x.string.ptr);
+            _ = fprintf(stdout, "String(\"%1.*s\")", expr.x.string.len, expr.x.string.ptr);
         },
         .arithmetic => {
             _ = fprintf(stdout, "Arith(");
@@ -171,6 +172,8 @@ pub export fn printStatement(stmt: Statement) void {
         .assignment => {
             const assign = stmt.x.assignment;
             _ = fprintf(stdout, "%1.*s = ", assign.name.len, assign.name.ptr);
+            printExpression(assign.value);
+            _ = fprintf(stdout, "\n");
         },
         .inline_batch => {
             _ = fprintf(stdout, "Inline Batch {\n");
@@ -199,7 +202,7 @@ pub export fn printStatement(stmt: Statement) void {
             printStatement(stmt.x.@"while".body.*);
         },
         .block => {
-            _ = fprintf(stdout, "Block {");
+            _ = fprintf(stdout, "Block {\n");
             for (stmt.x.block.statements.ptr[0..stmt.x.block.statements.len]) |s| {
                 printStatement(s);
             }
@@ -220,23 +223,374 @@ pub const Program = extern struct {
     statements: Slice(Statement),
 };
 
-// TODO: rest of parser.c
-// pub export fn parseParameters(ally: Allocator, it: *TokenIterator) Vec(Expression) {
-//     const res = vec.createVec(Expression, ally, 1);
-//     if (!res.ok) @panic(std.mem.span(res.x.err));
-//     var parameters = res.x.val;
-//     _ = parameters; // autofix
-//     var param = tok.nextToken(it);
-//     while (param.tag != .closeParen) {
-//         if (param.tag == .eof) @panic("parseExpression: Unclosed open paren");
-//         const expr = parseExpression(ally, it, param);
-//     }
-// }
+pub export fn parseParameters(ally: Allocator, it: *TokenIterator) Vec(Expression) {
+    const res = vec.createVec(Expression, ally, 1);
+    if (!res.ok) @panic(std.mem.span(res.x.err));
+    var parameters = res.x.val;
+    var param = tok.nextToken(it);
+    while (param.tag != .closeParen) {
+        if (param.tag == .eof) @panic("parseExpression: Unclosed open paren");
+        const expr = parseExpression(ally, it, param);
+        const paramSep = tok.nextToken(it);
+        if (paramSep.tag != .comma and paramSep.tag != .closeParen) {
+            @panic("parseExpression: Parameter list expression not followed by comma or close paren ^");
+        }
+        if (!vec.append(Expression, &parameters, &expr)) {
+            @panic("Failed to append to parameter list");
+        }
+        if (paramSep.tag == .closeParen) break;
+        param = tok.nextToken(it);
+    }
+    vec.shrinkToLength(Expression, &parameters);
+    return parameters;
+}
 
-// pub export fn parseExpression(ally: Allocator, it: *TokenIterator, t: tok.Token) Expression {
-//     switch (t.tag) {
-//         .number => {
+pub export fn parseExpression(ally: Allocator, it: *TokenIterator, t: tok.Token) Expression {
+    switch (t.tag) {
+        .number => {
+            const next = tok.peekToken(it);
+            if (next.tag != .star and
+                next.tag != .plus and
+                next.tag != .excl and
+                next.tag != .hyphen and
+                next.tag != .slash and
+                next.tag != .percent and
+                next.tag != .equal)
+                return .{ .tag = .numeric, .x = .{ .number = t.x.number } };
+            _ = tok.nextToken(it);
+            if (next.tag == .equal or next.tag == .excl) {
+                if (tok.peekToken(it).tag != .equal) {
+                    @panic("Invalid expression following <num> =");
+                }
+                // ==
+                //  ^
+                _ = tok.nextToken(it);
+            }
+            const lr_res = alloc.alloc(ally, Expression, 2);
+            if (!lr_res.ok) @panic(std.mem.span(lr_res.x.err));
+            const left = &lr_res.x.val.ptr[0];
+            const right = &lr_res.x.val.ptr[1];
+            left.* = parseExpression(ally, it, t);
+            right.* = parseExpression(ally, it, tok.nextToken(it));
+            return .{
+                .tag = .arithmetic,
+                .x = .{ .arithmetic = .{
+                    .op = switch (next.tag) {
+                        .star => '*',
+                        .plus => '+',
+                        .hyphen => '-',
+                        .equal => '=',
+                        .excl => '!',
+                        .percent => '%',
+                        else => '/',
+                    },
+                    .left = left,
+                    .right = right,
+                } },
+            };
+        },
+        .string => {
+            return .{ .tag = .string, .x = .{ .string = t.x.string } };
+        },
+        .ident => {
+            const next = tok.peekToken(it);
+            if (next.tag == .star or
+                next.tag == .plus or
+                next.tag == .excl or
+                next.tag == .hyphen or
+                next.tag == .slash or
+                next.tag == .percent or
+                next.tag == .equal)
+            {
+                _ = tok.nextToken(it);
+                if (next.tag == .equal or next.tag == .excl) {
+                    if (tok.peekToken(it).tag != .equal) {
+                        @panic("Invalid expression following <num> =");
+                    }
+                    // ==
+                    //  ^
+                    _ = tok.nextToken(it);
+                }
+                const lr_res = alloc.alloc(ally, Expression, 2);
+                if (!lr_res.ok) @panic(std.mem.span(lr_res.x.err));
+                const left = &lr_res.x.val.ptr[0];
+                const right = &lr_res.x.val.ptr[1];
+                left.* = .{
+                    .tag = .identifier,
+                    .x = .{ .identifier = t.x.ident },
+                };
+                right.* = parseExpression(ally, it, tok.nextToken(it));
+                return .{
+                    .tag = .arithmetic,
+                    .x = .{ .arithmetic = .{
+                        .op = switch (next.tag) {
+                            .star => '*',
+                            .plus => '+',
+                            .hyphen => '-',
+                            .equal => '=',
+                            .excl => '!',
+                            .percent => '%',
+                            else => '/',
+                        },
+                        .left = left,
+                        .right = right,
+                    } },
+                };
+            }
+            if (next.tag == .openParen) {
+                // call expression
+                _ = tok.nextToken(it);
+                const parameters = parseParameters(ally, it);
+                const callee_res = alloc.alloc(ally, Expression, 1);
+                if (!callee_res.ok) @panic("parseExpression: Failed to allocate callee");
+                const callee = &callee_res.x.val.ptr[0];
+                callee.* = .{
+                    .tag = .identifier,
+                    .x = .{
+                        .identifier = t.x.ident,
+                    },
+                };
+                return .{
+                    .tag = .call,
+                    .x = .{ .call = .{
+                        .callee = callee,
+                        .parameters = parameters.slice.ptr,
+                        .parameters_len = parameters.slice.len,
+                    } },
+                };
+            }
+            return .{ .tag = .identifier, .x = .{ .identifier = t.x.ident } };
+        },
+        .openParen => {
+            const parameters = parseParameters(ally, it);
+            const body_res = alloc.alloc(ally, Statement, 1);
+            if (!body_res.ok) @panic(std.mem.span(body_res.x.err));
+            const body = &body_res.x.val.ptr[0];
+            body.* = parseStatement(ally, it);
+            return .{
+                .tag = .function,
+                .x = .{ .function_expression = .{
+                    .parameters = parameters.slice.ptr,
+                    .parameters_len = parameters.slice.len,
+                    .body = body,
+                } },
+            };
+        },
+        .eof,
+        .closeParen,
+        .openCurly,
+        .closeCurly,
+        .semi,
+        .comma,
+        .colon,
+        .equal,
+        .excl,
+        .star,
+        .plus,
+        .hyphen,
+        .slash,
+        .percent,
+        .inlineBatch,
+        .unknown,
+        => {
+            tok.printToken(t);
+            @panic("\nparseExpression: Invalid TokenType ^");
+        },
+    }
+}
 
-//         }
-//     }
-// }
+pub export fn parseStatement(ally: Allocator, it: *TokenIterator) Statement {
+    const snapshot = it.*;
+    const t = tok.nextToken(it);
+    switch (t.tag) {
+        .ident, .number, .string => {
+            if (t.tag == .ident and t.x.ident.eql("if")) {
+                if (tok.peekToken(it).tag != .openParen) {
+                    @panic("Missing ( after if");
+                }
+                _ = tok.nextToken(it); // (
+                const condition = parseExpression(ally, it, tok.nextToken(it));
+                if (tok.peekToken(it).tag != .closeParen) {
+                    tok.printToken(tok.peekToken(it));
+                    @panic("\nMissing ) after if condition");
+                }
+                _ = tok.nextToken(it); // )
+                const if_res = alloc.alloc(ally, If, 1);
+                if (!if_res.ok) @panic(std.mem.span(if_res.x.err));
+                const if_statement = &if_res.x.val.ptr[0];
+                const cons_res = alloc.alloc(ally, Statement, 1);
+                if (!cons_res.ok) @panic(std.mem.span(cons_res.x.err));
+                const consequence = &cons_res.x.val.ptr[0];
+                consequence.* = parseStatement(ally, it);
+                if_statement.condition = condition;
+                if_statement.consequence = consequence;
+                if_statement.alternate = null;
+                const elseToken = tok.peekToken(it);
+                if (elseToken.tag == .ident and elseToken.x.ident.eql("else")) {
+                    _ = tok.nextToken(it);
+                    const alt_res = alloc.alloc(ally, Statement, 1);
+                    if (!alt_res.ok) @panic(std.mem.span(alt_res.x.err));
+                    const alternate = &alt_res.x.val.ptr[0];
+                    alternate.* = parseStatement(ally, it);
+                    if_statement.alternate = alternate;
+                }
+                return .{ .tag = .@"if", .x = .{ .@"if" = if_statement } };
+            } else if (t.tag == .ident and t.x.ident.eql("while")) {
+                if (tok.peekToken(it).tag != .openParen) {
+                    @panic("Missing ( after while");
+                }
+                _ = tok.nextToken(it); // (
+                const condition = parseExpression(ally, it, tok.nextToken(it));
+                if (tok.peekToken(it).tag != .closeParen) {
+                    tok.printToken(tok.peekToken(it));
+                    @panic("\nMissing ) after while condition");
+                }
+                _ = tok.nextToken(it); // )
+                const while_res = alloc.alloc(ally, While, 1);
+                if (!while_res.ok) @panic(std.mem.span(while_res.x.err));
+                const while_statement = &while_res.x.val.ptr[0];
+                const body_res = alloc.alloc(ally, Statement, 1);
+                if (!body_res.ok) @panic(std.mem.span(body_res.x.err));
+                const body = &body_res.x.val.ptr[0];
+                body.* = parseStatement(ally, it);
+                while_statement.condition = condition;
+                while_statement.body = body;
+                return .{ .tag = .@"while", .x = .{ .@"while" = while_statement } };
+            } else if (t.tag == .ident and t.x.ident.eql("return")) {
+                if (tok.peekToken(it).tag == .semi) {
+                    _ = tok.nextToken(it);
+                    return .{ .tag = .@"return", .x = .{ .@"return" = null } };
+                }
+                const ret_expr = alloc.alloc(ally, Expression, 1);
+                if (!ret_expr.ok) @panic(std.mem.span(ret_expr.x.err));
+                const ret = &ret_expr.x.val.ptr[0];
+                ret.* = parseExpression(ally, it, tok.nextToken(it));
+                const semi = tok.nextToken(it);
+                if (semi.tag != .semi) {
+                    tok.printToken(semi);
+                    @panic("\nparse: Unknown token following expression statement ^");
+                }
+                return .{ .tag = .@"return", .x = .{ .@"return" = ret } };
+            } else if (t.tag == .ident and tok.peekToken(it).tag == .colon) {
+                _ = tok.nextToken(it); // :
+                const afterColon = tok.peekToken(it);
+                if (afterColon.tag != .equal and afterColon.tag != .colon) {
+                    tok.printToken(tok.peekToken(it));
+                    @panic("Invalid token following colon ^");
+                }
+                _ = tok.nextToken(it); // =
+                const value = parseExpression(ally, it, tok.nextToken(it));
+                const decl_stmt = Statement{
+                    .tag = .declaration,
+                    .x = .{ .declaration = .{
+                        .name = t.x.ident,
+                        .value = value,
+                        .constant = afterColon.tag == .colon,
+                    } },
+                };
+                const semi = tok.nextToken(it);
+                if (semi.tag != .semi) {
+                    tok.printToken(semi);
+                    @panic("\nparse: Unknown token following expression statement ^");
+                }
+                return decl_stmt;
+            } else if (t.tag == .ident and tok.peekToken(it).tag == .equal) {
+                _ = tok.nextToken(it);
+                const value = parseExpression(ally, it, tok.nextToken(it));
+                const assign_stmt = Statement{
+                    .tag = .assignment,
+                    .x = .{ .assignment = .{
+                        .name = t.x.ident,
+                        .value = value,
+                    } },
+                };
+                const semi = tok.nextToken(it);
+                if (semi.tag != .semi) {
+                    tok.printToken(semi);
+                    @panic("\nparse: Unknown token following expression statement ^");
+                }
+                return assign_stmt;
+            } else {
+                const s = Statement{
+                    .tag = .expression,
+                    .x = .{ .expression = parseExpression(ally, it, t) },
+                };
+                const semi = tok.nextToken(it);
+                if (semi.tag != .semi) {
+                    tok.printToken(semi);
+                    @panic("\nparse: Unknown token following expression statement ^");
+                }
+                return s;
+            }
+        },
+        .inlineBatch => {
+            return .{
+                .tag = .inline_batch,
+                .x = .{ .inline_batch = t.x.inline_batch },
+            };
+        },
+        .openCurly => {
+            const statements_res = vec.createVec(Statement, ally, 4);
+            if (!statements_res.ok) @panic(std.mem.span(statements_res.x.err));
+            var statements = statements_res.x.val;
+            var stmt = parseStatement(ally, it);
+            while (stmt.tag != .eof) {
+                printStatement(stmt);
+                if (!vec.append(Statement, &statements, &stmt)) {
+                    @panic("Failed to append statement in block");
+                }
+                stmt = parseStatement(ally, it);
+            }
+            const closecurly = tok.peekToken(it);
+            if (closecurly.tag != .closeCurly) {
+                tok.printToken(closecurly);
+                _ = std.c.printf("\n");
+                @panic("\nparse: Unknown token following block ^");
+            }
+            _ = tok.nextToken(it); // }
+            const block_res = alloc.alloc(ally, Block, 1);
+            if (!block_res.ok) @panic(std.mem.span(block_res.x.err));
+            vec.shrinkToLength(Statement, &statements);
+            block_res.x.val.ptr[0].statements = statements.slice;
+            return .{
+                .tag = .block,
+                .x = .{ .block = &block_res.x.val.ptr[0] },
+            };
+        },
+        .eof,
+        .openParen,
+        .closeParen,
+        .closeCurly,
+        .semi,
+        .comma,
+        .colon,
+        .equal,
+        .excl,
+        .star,
+        .plus,
+        .hyphen,
+        .slash,
+        .percent,
+        .unknown,
+        => {
+            it.* = snapshot; // restore
+            return .{ .tag = .eof };
+        },
+    }
+    unreachable;
+}
+
+pub export fn parse(ally: Allocator, it: *TokenIterator) Program {
+    const res = vec.createVec(Statement, ally, 16);
+    if (!res.ok) @panic("parse: Failed to alloc statements");
+    var statements = res.x.val;
+    var stmt = parseStatement(ally, it);
+    while (stmt.tag != .eof) {
+        if (!vec.append(Statement, &statements, &stmt)) {
+            @panic("Failed to append to statement list");
+        }
+        stmt = parseStatement(ally, it);
+    }
+    vec.shrinkToLength(Statement, &statements);
+    return .{ .statements = statements.slice };
+}

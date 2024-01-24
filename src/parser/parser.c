@@ -112,9 +112,17 @@ DefResult(Slice_While);
 DefSlice(Block);
 DefResult(Slice_Block);
 
+typedef struct {
+  Slice(Statement) statements;
+} Program;
+
 #ifdef BUILDING_WITH_ZIG
 extern void printExpression(Expression expr);
 extern void printStatement(Statement stmt);
+extern Vec(Expression) parseParameters(Allocator ally, TokenIterator *it);
+extern Expression parseExpression(Allocator ally, TokenIterator *it, Token t);
+extern Statement parseStatement(Allocator ally, TokenIterator *it);
+extern Program parse(Allocator ally, TokenIterator *it);
 #else
 static void printStatement(Statement stmt);
 static void printExpression(Expression expr) {
@@ -226,11 +234,6 @@ static void printStatement(Statement stmt) {
   } break;
   }
 }
-#endif
-
-typedef struct {
-  Slice(Statement) statements;
-} Program;
 
 static inline Expression parseExpression(Allocator ally, TokenIterator *it,
                                          Token t);
@@ -334,7 +337,7 @@ static inline Expression parseExpression(Allocator ally, TokenIterator *it,
       Expression *right = &lr_res.val.ptr[1];
       *left = (Expression){
           .type = IdentifierExpression,
-          .number = t.ident,
+          .identifier = t.ident,
       };
       *right = parseExpression(ally, it, nextToken(it));
       return (Expression){
@@ -600,6 +603,7 @@ static Statement parseStatement(Allocator ally, TokenIterator *it) {
     Result(Slice_Block) block_res = alloc(ally, Block, 1);
     if (!block_res.ok)
       panic(block_res.err);
+    shrinkToLength(&statements, Statement);
     block_res.val.ptr->statements = statements.slice;
     return (Statement){.type = BlockStatement, .block = block_res.val.ptr};
   } break;
@@ -642,5 +646,6 @@ static Program parse(Allocator ally, TokenIterator *it) {
   shrinkToLength(&statements, Statement);
   return (Program){.statements = statements.slice};
 }
+#endif
 
 #endif /* PARSER_H */
