@@ -1,4 +1,5 @@
 const std = @import("std");
+const builtin = @import("builtin");
 const vec = @import("../std/Vec.zig");
 const Vec = vec.Vec;
 const Slice = @import("../std/Slice.zig").Slice;
@@ -92,10 +93,16 @@ const Block = extern struct {
 };
 
 extern "c" fn fprintf(noalias stream: *std.c.FILE, [*:0]const u8, ...) c_int;
-// TODO: Fix on Windows
-extern "c" const stdout: *std.c.FILE;
+pub fn getStdOut() *std.c.FILE {
+    if (builtin.target.os.tag == .windows) return @extern(
+        *const fn (c_int) callconv(.C) *std.c.FILE,
+        .{ .name = "__acrt_iob_func", .library_name = "c" },
+    )(0);
+    return @extern(**std.c.FILE, .{ .name = "stdout", .library_name = "c" }).*;
+}
 
 pub export fn printExpression(expr: Expression) void {
+    const stdout = getStdOut();
     _ = fprintf(stdout, "Expr:");
     switch (expr.tag) {
         .call => {
@@ -143,6 +150,7 @@ pub export fn printExpression(expr: Expression) void {
 }
 
 pub export fn printStatement(stmt: Statement) void {
+    const stdout = getStdOut();
     switch (stmt.tag) {
         .expression => {
             printExpression(stmt.x.expression);

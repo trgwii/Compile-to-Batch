@@ -19,10 +19,10 @@ pub export fn nameListHasString(list: Slice(Binding), string: Slice(u8)) bool {
 }
 
 extern "c" fn fprintf(noalias stream: *std.c.FILE, [*:0]const u8, ...) c_int;
-// TODO: Fix on Windows
-extern "c" const stdout: *std.c.FILE;
+const getStdOut = p.getStdOut;
 
 pub export fn analyzeExpression(ally: Allocator, names: Slice(Binding), expr: p.Expression) void {
+    const stdout = getStdOut();
     switch (expr.tag) {
         .identifier => {
             if (!nameListHasString(names, expr.x.identifier)) {
@@ -67,6 +67,7 @@ pub export fn analyzeExpression(ally: Allocator, names: Slice(Binding), expr: p.
 }
 
 pub export fn analyzeStatement(names: *vec.Vec(Binding), stmt: p.Statement) void {
+    const stdout = getStdOut();
     switch (stmt.tag) {
         .declaration => {
             if (nameListHasString(names.slice, stmt.x.declaration.name)) {
@@ -133,6 +134,7 @@ pub export fn analyzeStatement(names: *vec.Vec(Binding), stmt: p.Statement) void
 }
 
 pub export fn analyze(ally: Allocator, prog: p.Program) void {
+    const stdout = getStdOut();
     const names_res = vec.createVec(Binding, ally, 4);
     if (!names_res.ok) @panic(std.mem.span(names_res.x.err));
     var names = names_res.x.val;
