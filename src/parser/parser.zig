@@ -52,7 +52,7 @@ const Assignment = extern struct {
     value: Expression,
 };
 
-const StatementType = enum(c_int) {
+pub const StatementType = enum(c_int) {
     eof,
     expression,
     declaration,
@@ -78,7 +78,7 @@ pub const Statement = extern struct {
     } = undefined,
 };
 
-const If = extern struct {
+pub const If = extern struct {
     condition: Expression,
     consequence: *Statement,
     alternate: ?*Statement,
@@ -89,7 +89,7 @@ const While = extern struct {
     body: *Statement,
 };
 
-const Block = extern struct {
+pub const Block = extern struct {
     statements: Slice(Statement),
 };
 

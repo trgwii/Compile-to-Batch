@@ -5,7 +5,7 @@ const alloc = @import("../std/Allocator.zig");
 const Allocator = alloc.Allocator;
 const p = @import("parser.zig");
 
-const Binding = extern struct {
+pub const Binding = extern struct {
     name: Slice(u8),
     read: bool,
     constant: bool,

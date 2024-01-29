@@ -49,14 +49,9 @@ static bool startsWith(char *haystack, char *needle) {
 
 #ifdef BUILDING_WITH_ZIG
 extern size_t str_len(char *s);
-#define strlen str_len
-#endif
-
+extern int main(int argc, char **argv, char **envp);
+#else
 int main(int argc, char **argv, char **envp) {
-#ifdef BUILDING_WITH_ZIG
-  extern void setup_fault_handlers(void);
-  setup_fault_handlers();
-#endif
   bool noColor = false;
   while (*envp) {
     char *str = *envp;
@@ -105,6 +100,7 @@ int main(int argc, char **argv, char **envp) {
   fprintf(stdout, "\n%s--- /SOURCE ---\n", gray);
 
   fprintf(stdout, "---  TOKENS ---%s\n", green);
+  fflush(stdout);
 
   TokenIterator it = tokenizer(data);
   Token t = nextToken(&it);
@@ -127,6 +123,9 @@ int main(int argc, char **argv, char **envp) {
   fprintf(stdout, "\n%s--- /TOKENS ---\n", gray);
 
   fprintf(stdout, "---  PARSE ---%s\n", yellow);
+
+  fflush(stdout);
+
   resetTokenizer(&it);
 
   Program prog = parse(ally, &it);
@@ -137,10 +136,12 @@ int main(int argc, char **argv, char **envp) {
   fprintf(stdout, "%s--- /PARSE ---\n", gray);
 
   fprintf(stdout, "---  ANALYZE ---%s\n", red);
+  fflush(stdout);
   analyze(ally, prog);
   fprintf(stdout, "%s--- /ANALYZE ---\n", gray);
 
   fprintf(stdout, "---  CODEGEN ---%s\n", pink);
+  fflush(stdout);
 
   Result(Vec_char) outputVecRes = createVec(ally, char, 512);
   if (!outputVecRes.ok)
@@ -172,3 +173,4 @@ int main(int argc, char **argv, char **envp) {
 
   return 0;
 }
+#endif

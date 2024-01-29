@@ -8,6 +8,19 @@
 DefVec(char);
 DefResult(Vec_char);
 
+#ifdef BUILDING_WITH_ZIG
+extern void emitExpression(Expression expr, StatementType parent,
+                           Allocator ally, Vec(Statement) * temporaries,
+                           Vec(char) * out, size_t *call_labels);
+extern Slice(char) trim(Slice(char) str);
+extern void emitStatement(Statement stmt, Allocator ally,
+                          Vec(Statement) * temporaries, Vec(char) * out,
+                          size_t *branch_labels, size_t *loop_labels,
+                          size_t *call_labels, Vec(Binding) * names,
+                          Vec(Statement) * outer_assignments,
+                          Vec(char) * functions);
+extern void outputBatch(Program prog, Allocator ally, Vec(char) * out);
+#else
 static void emitExpression(Expression expr, StatementType parent,
                            Allocator ally, Vec(Statement) * temporaries,
                            Vec(char) * out, size_t *call_labels) {
@@ -74,6 +87,7 @@ static void emitExpression(Expression expr, StatementType parent,
                         .type = IdentifierExpression,
                         .identifier = {.ptr = "__ret__", .len = 7},
                     },
+                .constant = true,
             },
     };
     if (!append(temporaries, Statement, &ret_tmp)) {
@@ -225,6 +239,7 @@ static void emitStatement(Statement stmt, Allocator ally,
                            ->statements)) {
         panic("Failed to copy body contents");
       }
+      shrinkToLength(&body_contents, Statement);
       Block bodyBlockWithParams = {
           .statements = body_contents.slice,
       };
@@ -444,6 +459,7 @@ static void emitStatement(Statement stmt, Allocator ally,
       appendManyCString(&fbuffered, "\"");
     }
     appendManyCString(&fbuffered, " && exit /b 0\r\n");
+    shrinkToLength(&fbuffered, char);
     appendSlice(out, char, fbuffered.slice);
   } break;
   case ExpressionStatement: {
@@ -478,6 +494,7 @@ static void emitStatement(Statement stmt, Allocator ally,
                          call_labels);
         }
         appendManyCString(&call, "\r\n");
+        shrinkToLength(&call, char);
         appendSlice(out, char, call.slice);
       }
     } break;
@@ -587,3 +604,5 @@ static void outputBatch(Program prog, Allocator ally, Vec(char) * out) {
                                  .len = temporaries.val.cap};
   resizeAllocation(ally, Statement, &allocation, 0);
 }
+
+#endif

@@ -6,9 +6,9 @@ pub const Allocator = extern struct {
     state: ?*anyopaque,
 };
 
-const Bump = extern struct {
+pub const Bump = extern struct {
     mem: Slice(u8),
-    cur: usize,
+    cur: usize = 0,
 };
 
 pub export fn alloc_(ally: Allocator, size: usize, length: usize) Result(Slice(u8)) {
@@ -42,7 +42,7 @@ pub fn resizeAllocation(ally: Allocator, comptime T: type, allocation: *Slice(T)
     resizeAllocation_(ally, @ptrCast(allocation), @sizeOf(T), new_length);
 }
 
-export fn bumpRealloc(ptr: ?*anyopaque, size: usize, old_size: usize, state: ?*anyopaque) ?*anyopaque {
+pub export fn bumpRealloc(ptr: ?*anyopaque, size: usize, old_size: usize, state: ?*anyopaque) ?*anyopaque {
     const bump = @as(*Bump, @alignCast(@ptrCast(state.?)));
     if (size == 0) {
         if (@intFromPtr(bump.mem.ptr) + bump.cur - old_size == @intFromPtr(ptr)) {
