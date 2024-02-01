@@ -116,14 +116,6 @@ typedef struct {
   Slice(Statement) statements;
 } Program;
 
-#ifdef BUILDING_WITH_ZIG
-extern void printExpression(Expression expr);
-extern void printStatement(Statement stmt);
-extern Vec(Expression) parseParameters(Allocator ally, TokenIterator *it);
-extern Expression parseExpression(Allocator ally, TokenIterator *it, Token t);
-extern Statement parseStatement(Allocator ally, TokenIterator *it);
-extern Program parse(Allocator ally, TokenIterator *it);
-#else
 static void printStatement(Statement stmt);
 static void printExpression(Expression expr) {
   fprintf(stdout, "Expr:");
@@ -646,6 +638,5 @@ static Program parse(Allocator ally, TokenIterator *it) {
   shrinkToLength(&statements, Statement);
   return (Program){.statements = statements.slice};
 }
-#endif
 
 #endif /* PARSER_H */

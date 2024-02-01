@@ -7,9 +7,6 @@
 #include "readAllAlloc.c"
 #include <stdio.h>
 
-#ifdef BUILDING_WITH_ZIG
-extern Result(Slice_char) readFile(Allocator ally, const char *path);
-#else
 static Result(Slice_char) readFile(Allocator ally, const char *path) {
   FILE *f = fopen(path, "r");
   if (!f) {
@@ -23,6 +20,5 @@ static Result(Slice_char) readFile(Allocator ally, const char *path) {
   }
   return res;
 }
-#endif
 
 #endif /* READ_FILE_H */

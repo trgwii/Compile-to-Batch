@@ -5,9 +5,6 @@
 #include "defs.h"
 #include <stdbool.h>
 
-#ifdef BUILDING_WITH_ZIG
-extern bool eql(Slice(char) a, Slice(char) b);
-#else
 static bool eql(Slice(char) a, Slice(char) b) {
   if (a.len != b.len)
     return false;
@@ -19,6 +16,5 @@ static bool eql(Slice(char) a, Slice(char) b) {
   }
   return true;
 }
-#endif
 
 #endif /* EQL_H */

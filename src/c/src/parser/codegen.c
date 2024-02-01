@@ -8,19 +8,6 @@
 DefVec(char);
 DefResult(Vec_char);
 
-#ifdef BUILDING_WITH_ZIG
-extern void emitExpression(Expression expr, StatementType parent,
-                           Allocator ally, Vec(Statement) * temporaries,
-                           Vec(char) * out, size_t *call_labels);
-extern Slice(char) trim(Slice(char) str);
-extern void emitStatement(Statement stmt, Allocator ally,
-                          Vec(Statement) * temporaries, Vec(char) * out,
-                          size_t *branch_labels, size_t *loop_labels,
-                          size_t *call_labels, Vec(Binding) * names,
-                          Vec(Statement) * outer_assignments,
-                          Vec(char) * functions);
-extern void outputBatch(Program prog, Allocator ally, Vec(char) * out);
-#else
 static void emitExpression(Expression expr, StatementType parent,
                            Allocator ally, Vec(Statement) * temporaries,
                            Vec(char) * out, size_t *call_labels) {
@@ -604,5 +591,3 @@ static void outputBatch(Program prog, Allocator ally, Vec(char) * out) {
                                  .len = temporaries.val.cap};
   resizeAllocation(ally, Statement, &allocation, 0);
 }
-
-#endif

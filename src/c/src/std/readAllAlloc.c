@@ -6,9 +6,6 @@
 #include "defs.h"
 #include <stdio.h>
 
-#ifdef BUILDING_WITH_ZIG
-extern Result(Slice_char) readAllAlloc(Allocator ally, FILE *f);
-#else
 static Result(Slice_char) readAllAlloc(Allocator ally, FILE *f) {
   Result(Slice_char) res = alloc(ally, char, 16);
   if (!res.ok) {
@@ -33,6 +30,5 @@ static Result(Slice_char) readAllAlloc(Allocator ally, FILE *f) {
   resizeAllocation(ally, char, &str, total_read);
   return Result_Ok(Slice_char, str);
 }
-#endif
 
 #endif /* READ_ALL_ALLOC_H */

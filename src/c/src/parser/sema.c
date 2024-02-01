@@ -16,13 +16,6 @@ DefSlice(Binding);
 DefVec(Binding);
 DefResult(Vec_Binding);
 
-#ifdef BUILDING_WITH_ZIG
-extern bool nameListHasString(Slice(Binding) list, Slice(char) string);
-extern void analyzeExpression(Allocator ally, Slice(Binding) names,
-                              Expression expr);
-extern void analyzeStatement(Vec(Binding) * names, Statement stmt);
-extern void analyze(Allocator ally, Program prog);
-#else
 static bool nameListHasString(Slice(Binding) list, Slice(char) string) {
   for (size_t i = 0; i < list.len; i++) {
     if (eql(list.ptr[i].name, string))
@@ -167,6 +160,5 @@ static void analyze(Allocator ally, Program prog) {
     }
   }
 }
-#endif
 
 #endif /* SEMA_H */

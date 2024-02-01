@@ -13,9 +13,6 @@ typedef struct {
   void *state;
 } Allocator;
 
-#ifdef BUILDING_WITH_ZIG
-extern Result(Slice_void) alloc_(Allocator ally, size_t size, size_t length);
-#else
 static Result(Slice_void) alloc_(Allocator ally, size_t size, size_t length) {
   void *ptr = ally.realloc(NULL, size * length, 0, ally.state);
   if (!ptr) {
@@ -24,7 +21,6 @@ static Result(Slice_void) alloc_(Allocator ally, size_t size, size_t length) {
   Slice_void res = {.ptr = ptr, .len = length};
   return Result_Ok(Slice_void, res);
 }
-#endif
 
 #define cast(expr, From, To)                                                   \
   (union {                                                                     \
@@ -36,10 +32,6 @@ static Result(Slice_void) alloc_(Allocator ally, size_t size, size_t length) {
 #define alloc(ally, T, length)                                                 \
   cast(alloc_(ally, sizeof(T), length), Result(Slice_void), Result(Slice_##T))
 
-#ifdef BUILDING_WITH_ZIG
-extern void resizeAllocation_(Allocator ally, Slice(void) * allocation,
-                              size_t size, size_t new_length);
-#else
 static void resizeAllocation_(Allocator ally, Slice(void) * allocation,
                               size_t size, size_t new_length) {
   void *ptr = ally.realloc(allocation->ptr, size * new_length,
@@ -50,7 +42,6 @@ static void resizeAllocation_(Allocator ally, Slice(void) * allocation,
   allocation->ptr = ptr;
   allocation->len = new_length;
 }
-#endif
 
 #define resizeAllocation(ally, T, allocation, new_length)                      \
   resizeAllocation_(ally, cast(allocation, Slice(T) *, Slice(void) *),         \
@@ -61,9 +52,6 @@ typedef struct {
   size_t cur;
 } Bump;
 
-#ifdef BUILDING_WITH_ZIG
-extern void *bumpRealloc(void *ptr, size_t size, size_t old_size, void *state);
-#else
 static void *bumpRealloc(void *ptr, size_t size, size_t old_size, void *state) {
   Bump *bump = (Bump *)state;
   if (size == 0) {
@@ -96,6 +84,5 @@ static void *bumpRealloc(void *ptr, size_t size, size_t old_size, void *state) {
   bump->cur += size - old_size + align;
   return result;
 }
-#endif
 
 #endif /* ALLOCATOR_H */

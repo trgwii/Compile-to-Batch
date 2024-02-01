@@ -9,19 +9,10 @@
 #include "parser/tokenizer.c"
 #include "std/Allocator.c"
 
-#ifdef BUILDING_WITH_ZIG
-extern __attribute__((noreturn)) void panic(const char *msg);
-extern Result(Slice_char) readFile(Allocator ally, const char *path);
-extern void writeAll(FILE *f, Slice(char) str);
-#else
 #include "std/panic.c"
 #include "std/readFile.c"
 #include "std/writeAll.c"
-#endif
 
-#ifdef BUILDING_WITH_ZIG
-extern void printSize(size_t bytes);
-#else
 static void printSize(size_t bytes) {
   if (bytes >= 1024 * 1024) {
     printf("%.2fMiB", (double)bytes / (1024 * 1024));
@@ -33,11 +24,7 @@ static void printSize(size_t bytes) {
   }
   printf("%zuB", bytes);
 }
-#endif
 
-#ifdef BUILDING_WITH_ZIG
-extern bool startsWith(char *haystack, char *needle);
-#else
 static bool startsWith(char *haystack, char *needle) {
   while (*haystack && *needle) {
     if (*haystack++ != *needle++)
@@ -45,12 +32,7 @@ static bool startsWith(char *haystack, char *needle) {
   }
   return *needle == 0;
 }
-#endif
 
-#ifdef BUILDING_WITH_ZIG
-extern size_t str_len(char *s);
-extern int main(int argc, char **argv, char **envp);
-#else
 int main(int argc, char **argv, char **envp) {
   bool noColor = false;
   while (*envp) {
@@ -173,4 +155,3 @@ int main(int argc, char **argv, char **envp) {
 
   return 0;
 }
-#endif
