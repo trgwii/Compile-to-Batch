@@ -36,7 +36,7 @@ static void resizeAllocation_(Allocator ally, Slice(void) * allocation,
                               size_t size, size_t new_length) {
   void *ptr = ally.realloc(allocation->ptr, size * new_length,
                            size * allocation->len, ally.state);
-  if (!ptr && new_length) {
+  if (!ptr) {
     return;
   }
   allocation->ptr = ptr;
@@ -64,7 +64,7 @@ static void *bumpRealloc(void *ptr, size_t size, size_t old_size, void *state) {
   }
   if (ptr != NULL && bump->mem.ptr + bump->cur - old_size != (char *)ptr) {
     // moving resize
-    // printf("(moving resize %lu -> %lu)\n", old_size, size);
+    // printf("(moving resize %zu -> %zu)\n", old_size, size);
     void *new_ptr = bumpRealloc(NULL, size, 0, state);
     if (!new_ptr)
       return NULL;

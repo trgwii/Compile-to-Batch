@@ -41,18 +41,20 @@ int main(int argc, char **argv) {
                " -O2"
                " -target x86_64-windows"
                " -Wno-single-bit-bitfield-constant-conversion"
-               " -o bin/bc.exe src/main.c"))
+               " -o bin/bc.exe"
+               " src/main.c"))
       exit(1);
     if (system("zig cc"
                " -O2"
                " -target x86_64-linux-musl"
-               " -o bin/bc src/main.c"))
+               " -o bin/bc"
+               " src/main.c"))
       exit(1);
   }
-  if (system(OUT " main.bb main.cmd"))
+  if (system(OUT " ../../main.bb ../../main.cmd"))
     exit(1);
 #ifdef _WIN32
-  if (system("cmd.exe /c main.cmd"))
+  if (system("cmd.exe /c ../../main.cmd"))
     exit(1);
 #else
   if (releaseMode(argc, argv))

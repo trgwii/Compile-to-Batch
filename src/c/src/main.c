@@ -8,6 +8,7 @@
 #include "parser/sema.c"
 #include "parser/tokenizer.c"
 #include "std/Allocator.c"
+
 #include "std/panic.c"
 #include "std/readFile.c"
 #include "std/writeAll.c"
@@ -21,7 +22,7 @@ static void printSize(size_t bytes) {
     printf("%.2fKiB", (double)bytes / 1024);
     return;
   }
-  printf("%luB", bytes);
+  printf("%zuB", bytes);
 }
 
 static bool startsWith(char *haystack, char *needle) {
@@ -81,6 +82,7 @@ int main(int argc, char **argv, char **envp) {
   fprintf(stdout, "\n%s--- /SOURCE ---\n", gray);
 
   fprintf(stdout, "---  TOKENS ---%s\n", green);
+  fflush(stdout);
 
   TokenIterator it = tokenizer(data);
   Token t = nextToken(&it);
@@ -92,8 +94,10 @@ int main(int argc, char **argv, char **envp) {
       if (++nl >= 4) {
         nl = 0;
         fprintf(stdout, "\n");
+        fflush(stdout);
       } else {
         fprintf(stdout, "%s,\t%s", gray, green);
+        fflush(stdout);
       }
     }
   }
@@ -101,6 +105,9 @@ int main(int argc, char **argv, char **envp) {
   fprintf(stdout, "\n%s--- /TOKENS ---\n", gray);
 
   fprintf(stdout, "---  PARSE ---%s\n", yellow);
+
+  fflush(stdout);
+
   resetTokenizer(&it);
 
   Program prog = parse(ally, &it);
@@ -111,10 +118,12 @@ int main(int argc, char **argv, char **envp) {
   fprintf(stdout, "%s--- /PARSE ---\n", gray);
 
   fprintf(stdout, "---  ANALYZE ---%s\n", red);
+  fflush(stdout);
   analyze(ally, prog);
   fprintf(stdout, "%s--- /ANALYZE ---\n", gray);
 
   fprintf(stdout, "---  CODEGEN ---%s\n", pink);
+  fflush(stdout);
 
   Result(Vec_char) outputVecRes = createVec(ally, char, 512);
   if (!outputVecRes.ok)
@@ -134,10 +143,13 @@ int main(int argc, char **argv, char **envp) {
   fprintf(stdout, "%s--- /CODEGEN ---\n", gray);
 
   fprintf(stdout, "%sMemory usage: ", cyan);
+  fflush(stdout);
   printSize(state.cur);
   fprintf(stdout, " / ");
+  fflush(stdout);
   printSize(state.mem.len);
   fprintf(stdout, "%s\n", reset);
+  fflush(stdout);
 
   resizeAllocation(ally, char, &data, 0);
 

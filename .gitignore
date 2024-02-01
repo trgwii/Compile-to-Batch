@@ -1,3 +1,5 @@
 .vscode
 bin
+zig-cache
+zig-out
 main.cmd

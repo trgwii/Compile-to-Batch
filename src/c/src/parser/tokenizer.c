@@ -8,17 +8,6 @@
 #include <stdbool.h>
 #include <stddef.h>
 
-typedef struct {
-  Slice(char) data;
-  size_t cur;
-  size_t line;
-  size_t col;
-} TokenIterator;
-
-static TokenIterator tokenizer(Slice(char) data) {
-  return (TokenIterator){.data = data, .cur = 0, .line = 1, .col = 1};
-}
-
 typedef enum {
   TokenType_EOF = 0,
   TokenType_Ident,
@@ -56,6 +45,17 @@ typedef struct {
     } unknown;
   };
 } Token;
+
+typedef struct {
+  Slice(char) data;
+  size_t cur;
+  size_t line;
+  size_t col;
+} TokenIterator;
+
+static TokenIterator tokenizer(Slice(char) data) {
+  return (TokenIterator){.data = data, .cur = 0, .line = 1, .col = 1};
+}
 
 static void printToken(Token t) {
   switch (t.type) {
@@ -111,7 +111,7 @@ static void printToken(Token t) {
     printf("Slash");
   } break;
   case TokenType_Percent: {
-    printf("Slash");
+    printf("Percent");
   } break;
   case TokenType_InlineBatch: {
     printf("Batch {%1.*s}", (int)t.inline_batch.len, t.inline_batch.ptr);

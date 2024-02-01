@@ -112,8 +112,11 @@ DefResult(Slice_While);
 DefSlice(Block);
 DefResult(Slice_Block);
 
-static void printStatement(Statement stmt);
+typedef struct {
+  Slice(Statement) statements;
+} Program;
 
+static void printStatement(Statement stmt);
 static void printExpression(Expression expr) {
   fprintf(stdout, "Expr:");
   switch (expr.type) {
@@ -224,10 +227,6 @@ static void printStatement(Statement stmt) {
   }
 }
 
-typedef struct {
-  Slice(Statement) statements;
-} Program;
-
 static inline Expression parseExpression(Allocator ally, TokenIterator *it,
                                          Token t);
 static Statement parseStatement(Allocator ally, TokenIterator *it);
@@ -330,7 +329,7 @@ static inline Expression parseExpression(Allocator ally, TokenIterator *it,
       Expression *right = &lr_res.val.ptr[1];
       *left = (Expression){
           .type = IdentifierExpression,
-          .number = t.ident,
+          .identifier = t.ident,
       };
       *right = parseExpression(ally, it, nextToken(it));
       return (Expression){
@@ -596,6 +595,7 @@ static Statement parseStatement(Allocator ally, TokenIterator *it) {
     Result(Slice_Block) block_res = alloc(ally, Block, 1);
     if (!block_res.ok)
       panic(block_res.err);
+    shrinkToLength(&statements, Statement);
     block_res.val.ptr->statements = statements.slice;
     return (Statement){.type = BlockStatement, .block = block_res.val.ptr};
   } break;
