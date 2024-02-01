@@ -1,9 +1,50 @@
+const std = @import("std");
 const Slice = @import("Slice.zig").Slice;
 const Result = @import("Result.zig").Result;
+const ZigAllocator = @import("std").mem.Allocator;
 
 pub const Allocator = extern struct {
     realloc: *const fn (ptr: ?*anyopaque, size: usize, old_size: usize, state: ?*anyopaque) callconv(.C) ?*anyopaque,
     state: ?*anyopaque,
+    fn alloc(ctx: *anyopaque, n: usize, log2_ptr_align: u8, ra: usize) ?[*]u8 {
+        _ = log2_ptr_align;
+        _ = ra;
+        const ally: *const Allocator = @ptrCast(@alignCast(ctx));
+        return @ptrCast(ally.realloc(null, n, 0, ally.state));
+    }
+    fn resize(
+        ctx: *anyopaque,
+        buf: []u8,
+        log2_buf_align: u8,
+        new_size: usize,
+        return_address: usize,
+    ) bool {
+        _ = log2_buf_align;
+        _ = return_address;
+        const ally: *const Allocator = @ptrCast(@alignCast(ctx));
+        return ally.realloc(buf.ptr, new_size, buf.len, ally.state) != null or new_size == 0;
+    }
+    fn free(
+        ctx: *anyopaque,
+        buf: []u8,
+        log2_buf_align: u8,
+        return_address: usize,
+    ) void {
+        _ = log2_buf_align;
+        _ = return_address;
+        const ally: *const Allocator = @ptrCast(@alignCast(ctx));
+        _ = ally.realloc(buf.ptr, 0, buf.len, ally.state);
+    }
+    pub fn allocator(self: *const Allocator) ZigAllocator {
+        return .{
+            .ptr = @constCast(self),
+            .vtable = &.{
+                .alloc = Allocator.alloc,
+                .resize = resize,
+                .free = free,
+            },
+        };
+    }
 };
 
 pub const Bump = extern struct {

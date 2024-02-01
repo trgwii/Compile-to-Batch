@@ -7,6 +7,9 @@ pub fn Slice(comptime T: type) type {
         pub fn toZig(self: @This()) []T {
             return self.ptr[0..self.len];
         }
+        pub fn fromZig(z: []T) @This() {
+            return .{ .ptr = z.ptr, .len = z.len };
+        }
         pub fn eql(self: @This(), other: anytype) bool {
             return std.mem.eql(T, self.toZig(), switch (@TypeOf(other)) {
                 @This() => other.toZig(),
