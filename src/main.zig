@@ -41,8 +41,7 @@ fn readFile(ally: std.mem.Allocator, path: []const u8) ![]u8 {
     return std.fs.cwd().readFileAlloc(ally, path, 1024 * 16);
 }
 
-pub export fn main(argc: c_int, argv: [*][*:0]u8) c_int {
-    const args = argv[0..@intCast(argc)];
+pub fn main() !void {
     const stderr = std.io.getStdErr().writer();
     const stdout = std.io.getStdOut().writer();
 
@@ -50,10 +49,13 @@ pub export fn main(argc: c_int, argv: [*][*:0]u8) c_int {
     var state = a.Bump{ .mem = .{ .ptr = &mem, .len = mem.len } };
     const ally = a.Allocator{ .realloc = a.bumpRealloc, .state = &state };
     const allocator = ally.allocator();
+    const args = try std.process.argsAlloc(allocator);
+    defer std.process.argsFree(allocator, args);
 
+    const snapshot = state.backup();
     const no_color = env: {
-        var env = std.process.getEnvMap(allocator) catch return 1;
-        defer state.cur = 0;
+        var env = try std.process.getEnvMap(allocator);
+        defer state.restore(snapshot);
         break :env if (env.hash_map.get("NO_COLOR")) |value| value.len > 0 else false;
     };
 
@@ -67,41 +69,41 @@ pub export fn main(argc: c_int, argv: [*][*:0]u8) c_int {
     const reset: [*:0]const u8 = if (no_color) "" else "\x1b[0m";
     if (args.len < 3) @panic("usage: bc [inputfile.bb] [outputfile.cmd]");
 
-    const data = readFile(allocator, std.mem.span(args[1])) catch |err| {
-        stderr.print(
+    const data = readFile(allocator, args[1]) catch |err| {
+        try stderr.print(
             "Error: {s}: {s}\n",
-            .{ @errorName(err), std.mem.span(args[1]) },
-        ) catch return 1;
-        return 1;
+            .{ @errorName(err), args[1] },
+        );
+        return err;
     };
     defer allocator.free(data);
 
-    stdout.print("{s}---  SOURCE ---{s}\n", .{ gray, blue }) catch {};
-    stdout.writeAll(data) catch {};
-    stdout.print("\n{s}--- /SOURCE ---\n", .{gray}) catch {};
+    try stdout.print("{s}---  SOURCE ---{s}\n", .{ gray, blue });
+    try stdout.writeAll(data);
+    try stdout.print("\n{s}--- /SOURCE ---\n", .{gray});
 
-    stdout.print("---  TOKENS ---{s}\n", .{green}) catch {};
+    try stdout.print("---  TOKENS ---{s}\n", .{green});
 
-    var it = tok.TokenIterator{ .data = Slice(u8).fromZig(data) };
+    var it = tok.TokenIterator{ .data = data };
     var t = tok.nextToken(&it);
     var nl: usize = 0;
-    while (t.tag != .eof) {
+    while (t != .eof) {
         tok.printToken(t);
         t = tok.nextToken(&it);
-        if (t.tag != .eof) {
+        if (t != .eof) {
             nl += 1;
             if (nl >= 4) {
                 nl = 0;
-                _ = stdout.print("\n", .{}) catch {};
+                try stdout.print("\n", .{});
             } else {
-                _ = stdout.print("{s},\t{s}", .{ gray, green }) catch {};
+                try stdout.print("{s},\t{s}", .{ gray, green });
             }
         }
     }
 
-    stdout.print("\n{s}--- /TOKENS ---\n", .{gray}) catch {};
+    try stdout.print("\n{s}--- /TOKENS ---\n", .{gray});
 
-    stdout.print("---  PARSE ---{s}\n", .{yellow}) catch {};
+    try stdout.print("---  PARSE ---{s}\n", .{yellow});
 
     tok.resetTokenizer(&it);
 
@@ -110,32 +112,30 @@ pub export fn main(argc: c_int, argv: [*][*:0]u8) c_int {
         p.printStatement(stmt);
     }
 
-    stdout.print("{s}--- /PARSE ---\n", .{gray}) catch {};
+    try stdout.print("{s}--- /PARSE ---\n", .{gray});
 
-    stdout.print("---  ANALYZE ---{s}\n", .{red}) catch {};
+    try stdout.print("---  ANALYZE ---{s}\n", .{red});
     s.analyze(ally, prog);
-    stdout.print("{s}--- /ANALYZE ---\n", .{gray}) catch {};
+    try stdout.print("{s}--- /ANALYZE ---\n", .{gray});
 
-    stdout.print("---  CODEGEN ---{s}\n", .{pink}) catch {};
+    try stdout.print("---  CODEGEN ---{s}\n", .{pink});
 
     const outputVecRes = v.createVec(u8, ally, 512);
     if (!outputVecRes.ok) @panic(std.mem.span(outputVecRes.x.err));
     var outputVec = outputVecRes.x.val;
     c.outputBatch(prog, ally, &outputVec);
-    const outputFile = std.fs.cwd().createFile(std.mem.span(args[2]), .{}) catch return 1;
-    outputFile.writeAll(outputVec.slice.toZig()) catch return 1;
+    const outputFile = try std.fs.cwd().createFile(args[2], .{});
+    try outputFile.writeAll(outputVec.slice.toZig());
     outputFile.close();
-    stdout.print("{s}Output Batch stored in {s}:{s}\n\n", .{ cyan, args[2], reset }) catch {};
-    const outputRes = readFile(allocator, std.mem.span(args[2])) catch |err| @panic(@errorName(err));
+    try stdout.print("{s}Output Batch stored in {s}:{s}\n\n", .{ cyan, args[2], reset });
+    const outputRes = try readFile(allocator, args[2]);
     defer allocator.free(outputRes);
-    stdout.print("{s}\n", .{outputRes}) catch {};
-    stdout.print("{s}--- /CODEGEN ---\n", .{gray}) catch {};
+    try stdout.print("{s}\n", .{outputRes});
+    try stdout.print("{s}--- /CODEGEN ---\n", .{gray});
 
-    stdout.print("{s}Memory usage: ", .{cyan}) catch {};
+    try stdout.print("{s}Memory usage: ", .{cyan});
     printSize(state.cur);
-    stdout.print(" / ", .{}) catch {};
+    try stdout.print(" / ", .{});
     printSize(state.mem.len);
-    stdout.print("{s}\n", .{reset}) catch {};
-
-    return 0;
+    try stdout.print("{s}\n", .{reset});
 }

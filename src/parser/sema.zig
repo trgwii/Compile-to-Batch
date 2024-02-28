@@ -18,21 +18,16 @@ pub export fn nameListHasString(list: Slice(Binding), string: Slice(u8)) bool {
     return false;
 }
 
-extern "c" fn fprintf(noalias stream: *std.c.FILE, [*:0]const u8, ...) c_int;
-const getStdOut = p.getStdOut;
-
 pub export fn analyzeExpression(ally: Allocator, names: Slice(Binding), expr: p.Expression) void {
-    const stdout = getStdOut();
+    const stdout = std.io.getStdOut().writer();
     switch (expr.tag) {
         .identifier => {
             if (!nameListHasString(names, expr.x.identifier)) {
                 if (!expr.x.identifier.eql("print")) {
-                    _ = fprintf(
-                        stdout,
-                        "Referring to undeclared name: %1.*s\n",
-                        expr.x.identifier.len,
-                        expr.x.identifier.ptr,
-                    );
+                    stdout.print(
+                        "Referring to undeclared name: {s}\n",
+                        .{expr.x.identifier.toZig()},
+                    ) catch {};
                 }
             } else for (names.toZig()) |*binding|
                 if (binding.name.eql(expr.x.identifier)) {
@@ -67,16 +62,14 @@ pub export fn analyzeExpression(ally: Allocator, names: Slice(Binding), expr: p.
 }
 
 pub export fn analyzeStatement(names: *vec.Vec(Binding), stmt: p.Statement) void {
-    const stdout = getStdOut();
+    const stdout = std.io.getStdOut().writer();
     switch (stmt.tag) {
         .declaration => {
             if (nameListHasString(names.slice, stmt.x.declaration.name)) {
-                _ = fprintf(
-                    stdout,
-                    "Double declaration of: %1.*s\n",
-                    stmt.x.assignment.name.len,
-                    stmt.x.assignment.name.ptr,
-                );
+                stdout.print(
+                    "Double declaration of: {s}\n",
+                    .{stmt.x.assignment.name.toZig()},
+                ) catch {};
                 return;
             }
             analyzeExpression(names.ally, names.slice, stmt.x.declaration.value);
@@ -89,22 +82,18 @@ pub export fn analyzeStatement(names: *vec.Vec(Binding), stmt: p.Statement) void
         },
         .assignment => {
             if (!nameListHasString(names.slice, stmt.x.assignment.name)) {
-                _ = fprintf(
-                    stdout,
-                    "Assignment to undeclared name: %1.*s\n",
-                    stmt.x.assignment.name.len,
-                    stmt.x.assignment.name.ptr,
-                );
+                stdout.print(
+                    "Assignment to undeclared name: {s}\n",
+                    .{stmt.x.assignment.name.toZig()},
+                ) catch {};
             } else {
                 for (names.slice.toZig()) |binding| {
                     if (binding.name.eql(stmt.x.assignment.name)) {
                         if (binding.constant) {
-                            _ = fprintf(
-                                stdout,
-                                "Assignment to constant: %1.*s\n",
-                                stmt.x.assignment.name.len,
-                                stmt.x.assignment.name.ptr,
-                            );
+                            stdout.print(
+                                "Assignment to constant: {s}\n",
+                                .{stmt.x.assignment.name.toZig()},
+                            ) catch {};
                         }
                     }
                 }
@@ -134,7 +123,7 @@ pub export fn analyzeStatement(names: *vec.Vec(Binding), stmt: p.Statement) void
 }
 
 pub export fn analyze(ally: Allocator, prog: p.Program) void {
-    const stdout = getStdOut();
+    const stdout = std.io.getStdOut().writer();
     const names_res = vec.createVec(Binding, ally, 4);
     if (!names_res.ok) @panic(std.mem.span(names_res.x.err));
     var names = names_res.x.val;
@@ -143,13 +132,10 @@ pub export fn analyze(ally: Allocator, prog: p.Program) void {
     }
     for (names.slice.toZig()) |b| {
         if (!b.read) {
-            _ = fprintf(
-                stdout,
-                "Unused %s: %1.*s\n",
+            stdout.print("Unused {s}: {s}\n", .{
                 if (b.constant) "constant" else "variable",
-                b.name.len,
-                b.name.ptr,
-            );
+                b.name.toZig(),
+            }) catch {};
         }
     }
 }

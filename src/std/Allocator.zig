@@ -50,6 +50,13 @@ pub const Allocator = extern struct {
 pub const Bump = extern struct {
     mem: Slice(u8),
     cur: usize = 0,
+    pub const BumpState = struct { cur: usize };
+    pub fn backup(self: Bump) BumpState {
+        return .{ .cur = self.cur };
+    }
+    pub fn restore(self: *Bump, snapshot: BumpState) void {
+        self.cur = snapshot.cur;
+    }
 };
 
 pub export fn alloc_(ally: Allocator, size: usize, length: usize) Result(Slice(u8)) {

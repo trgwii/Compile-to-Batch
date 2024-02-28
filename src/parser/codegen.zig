@@ -173,9 +173,6 @@ pub export fn trim(str: Slice(u8)) Slice(u8) {
     return .{ .ptr = @constCast(res.ptr), .len = res.len };
 }
 
-extern "c" fn fprintf(noalias stream: *std.c.FILE, [*:0]const u8, ...) c_int;
-const getStdOut = p.getStdOut;
-
 pub export fn emitStatement(
     stmt: p.Statement,
     ally: a.Allocator,
@@ -188,6 +185,7 @@ pub export fn emitStatement(
     outer_assignments: ?*v.Vec(p.Statement),
     functions: *v.Vec(u8),
 ) void {
+    const stdout = std.io.getStdOut().writer();
     const equal: u8 = '=';
     switch (stmt.tag) {
         .declaration => b: {
@@ -461,11 +459,11 @@ pub export fn emitStatement(
         },
         .expression => b: {
             const expr = stmt.x.expression;
-            const stdout = getStdOut();
+            // const stdout = getStdOut();
             switch (expr.tag) {
                 .call => {
                     if (expr.x.call.callee.tag != .identifier) {
-                        _ = fprintf(stdout, "Skipped unknown callee\n");
+                        stdout.writeAll("Skipped unknown callee\n") catch {};
                         break :b;
                     }
                     if (expr.x.call.callee.x.identifier.eql("print")) {
@@ -491,9 +489,9 @@ pub export fn emitStatement(
                     }
                 },
                 else => {
-                    _ = fprintf(stdout, "Skipped unknown expression: ");
-                    _ = fprintf(stdout, "%1.*s", expr.x.string.len, expr.x.string.ptr);
-                    _ = fprintf(stdout, "\n");
+                    stdout.writeAll("Skipped unknown expression: ") catch {};
+                    stdout.writeAll(expr.x.string.toZig()) catch {};
+                    stdout.writeByte('\n') catch {};
                 },
             }
         },

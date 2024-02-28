@@ -8,8 +8,8 @@ pub fn build(b: *std.Build) void {
         .root_source_file = .{ .path = "src/main.zig" },
         .target = target,
         .optimize = optimize,
+        .single_threaded = true,
     });
-    exe.linkLibC();
     b.installArtifact(exe);
     const run_cmd = b.addRunArtifact(exe);
     run_cmd.addArgs(&.{ "main.bb", "main.cmd" });
