@@ -1,19 +1,11 @@
 const std = @import("std");
 const a = @import("std/Allocator.zig");
-const tok = @import("parser/tokenizer.zig");
+const Lexer = @import("parser/Lexer.zig");
 const p = @import("parser/parser.zig");
 const s = @import("parser/sema.zig");
 const c = @import("parser/codegen.zig");
 const Slice = @import("std/Slice.zig").Slice;
 const v = @import("std/Vec.zig");
-comptime {
-    std.testing.refAllDecls(@import("std/Vec.zig"));
-
-    std.testing.refAllDecls(@import("parser/tokenizer.zig"));
-    std.testing.refAllDecls(@import("parser/parser.zig"));
-    std.testing.refAllDecls(@import("parser/sema.zig"));
-    std.testing.refAllDecls(@import("parser/codegen.zig"));
-}
 
 fn printSize(bytes: usize) void {
     const out = std.io.getStdOut().writer();
@@ -43,19 +35,19 @@ fn readFile(ally: std.mem.Allocator, path: []const u8) ![]u8 {
 
 pub fn main() !void {
     const stderr = std.io.getStdErr().writer();
+    _ = stderr;
     const stdout = std.io.getStdOut().writer();
 
     var mem: [1024 * 1024]u8 = undefined;
-    var state = a.Bump{ .mem = .{ .ptr = &mem, .len = mem.len } };
-    const ally = a.Allocator{ .realloc = a.bumpRealloc, .state = &state };
-    const allocator = ally.allocator();
+    var fba = std.heap.FixedBufferAllocator.init(&mem);
+    const allocator = fba.allocator();
     const args = try std.process.argsAlloc(allocator);
     defer std.process.argsFree(allocator, args);
 
-    const snapshot = state.backup();
+    const snapshot = fba.end_index;
     const no_color = env: {
         var env = try std.process.getEnvMap(allocator);
-        defer state.restore(snapshot);
+        defer fba.end_index = snapshot;
         break :env if (env.hash_map.get("NO_COLOR")) |value| value.len > 0 else false;
     };
 
@@ -69,13 +61,7 @@ pub fn main() !void {
     const reset: [*:0]const u8 = if (no_color) "" else "\x1b[0m";
     if (args.len < 3) @panic("usage: bc [inputfile.bb] [outputfile.cmd]");
 
-    const data = readFile(allocator, args[1]) catch |err| {
-        try stderr.print(
-            "Error: {s}: {s}\n",
-            .{ @errorName(err), args[1] },
-        );
-        return err;
-    };
+    const data = try readFile(allocator, args[1]);
     defer allocator.free(data);
 
     try stdout.print("{s}---  SOURCE ---{s}\n", .{ gray, blue });
@@ -84,20 +70,16 @@ pub fn main() !void {
 
     try stdout.print("---  TOKENS ---{s}\n", .{green});
 
-    var it = tok.TokenIterator{ .data = data };
-    var t = tok.nextToken(&it);
+    var it = Lexer{ .data = data };
     var nl: usize = 0;
-    while (t != .eof) {
-        tok.printToken(t);
-        t = tok.nextToken(&it);
-        if (t != .eof) {
-            nl += 1;
-            if (nl >= 4) {
-                nl = 0;
-                try stdout.print("\n", .{});
-            } else {
-                try stdout.print("{s},\t{s}", .{ gray, green });
-            }
+    while (it.next()) |t| {
+        t.print();
+        nl += 1;
+        if (nl >= 4) {
+            nl = 0;
+            try stdout.print("\n", .{});
+        } else {
+            try stdout.print("{s},\t{s}", .{ gray, green });
         }
     }
 
@@ -105,7 +87,10 @@ pub fn main() !void {
 
     try stdout.print("---  PARSE ---{s}\n", .{yellow});
 
-    tok.resetTokenizer(&it);
+    it.reset();
+
+    var state = a.Bump{ .mem = .{ .ptr = &mem, .len = mem.len }, .cur = fba.end_index };
+    const ally = a.Allocator{ .state = &state, .realloc = a.bumpRealloc };
 
     const prog = p.parse(ally, &it);
     for (prog.statements.toZig()) |stmt| {
@@ -128,6 +113,7 @@ pub fn main() !void {
     try outputFile.writeAll(outputVec.slice.toZig());
     outputFile.close();
     try stdout.print("{s}Output Batch stored in {s}:{s}\n\n", .{ cyan, args[2], reset });
+    fba.end_index = state.cur;
     const outputRes = try readFile(allocator, args[2]);
     defer allocator.free(outputRes);
     try stdout.print("{s}\n", .{outputRes});

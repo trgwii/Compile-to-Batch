@@ -5,8 +5,7 @@ const Vec = vec.Vec;
 const Slice = @import("../std/Slice.zig").Slice;
 const alloc = @import("../std/Allocator.zig");
 const Allocator = alloc.Allocator;
-const tok = @import("tokenizer.zig");
-const TokenIterator = tok.TokenIterator;
+const Lexer = @import("Lexer.zig");
 
 const ExpressionType = enum(c_int) {
     call,
@@ -206,15 +205,14 @@ pub const Program = extern struct {
     statements: Slice(Statement),
 };
 
-pub export fn parseParameters(ally: Allocator, it: *TokenIterator) Vec(Expression) {
+pub export fn parseParameters(ally: Allocator, it: *Lexer) Vec(Expression) {
     const res = vec.createVec(Expression, ally, 1);
     if (!res.ok) @panic(std.mem.span(res.x.err));
     var parameters = res.x.val;
-    var param = tok.nextToken(it);
-    while (param != .closeParen) {
-        if (param == .eof) @panic("parseExpression: Unclosed open paren");
+    var param = it.next().?;
+    while (param != .closeParen) : (param = it.next().?) {
         const expr = parseExpression(ally, it, param);
-        const paramSep = tok.nextToken(it);
+        const paramSep = it.next().?;
         if (paramSep != .comma and paramSep != .closeParen) {
             @panic("parseExpression: Parameter list expression not followed by comma or close paren ^");
         }
@@ -222,16 +220,15 @@ pub export fn parseParameters(ally: Allocator, it: *TokenIterator) Vec(Expressio
             @panic("Failed to append to parameter list");
         }
         if (paramSep == .closeParen) break;
-        param = tok.nextToken(it);
     }
     vec.shrinkToLength(Expression, &parameters);
     return parameters;
 }
 
-pub fn parseExpression(ally: Allocator, it: *TokenIterator, t: tok.Token) Expression {
+pub fn parseExpression(ally: Allocator, it: *Lexer, t: Lexer.Token) Expression {
     switch (t) {
         .number => |number| {
-            const next = tok.peekToken(it);
+            const next = Lexer.peek(it).?;
             if (next != .star and
                 next != .plus and
                 next != .excl and
@@ -240,21 +237,21 @@ pub fn parseExpression(ally: Allocator, it: *TokenIterator, t: tok.Token) Expres
                 next != .percent and
                 next != .equal)
                 return .{ .tag = .numeric, .x = .{ .number = Slice(u8).fromZig(@constCast(number)) } };
-            _ = tok.nextToken(it);
+            _ = it.next().?;
             if (next == .equal or next == .excl) {
-                if (tok.peekToken(it) != .equal) {
+                if (Lexer.peek(it).? != .equal) {
                     @panic("Invalid expression following <num> =");
                 }
                 // ==
                 //  ^
-                _ = tok.nextToken(it);
+                _ = it.next().?;
             }
             const lr_res = alloc.alloc(ally, Expression, 2);
             if (!lr_res.ok) @panic(std.mem.span(lr_res.x.err));
             const left = &lr_res.x.val.ptr[0];
             const right = &lr_res.x.val.ptr[1];
             left.* = parseExpression(ally, it, t);
-            right.* = parseExpression(ally, it, tok.nextToken(it));
+            right.* = parseExpression(ally, it, it.next().?);
             return .{
                 .tag = .arithmetic,
                 .x = .{ .arithmetic = .{
@@ -276,7 +273,7 @@ pub fn parseExpression(ally: Allocator, it: *TokenIterator, t: tok.Token) Expres
             return .{ .tag = .string, .x = .{ .string = Slice(u8).fromZig(@constCast(string)) } };
         },
         .ident => |ident| {
-            const next = tok.peekToken(it);
+            const next = Lexer.peek(it).?;
             if (next == .star or
                 next == .plus or
                 next == .excl or
@@ -285,14 +282,14 @@ pub fn parseExpression(ally: Allocator, it: *TokenIterator, t: tok.Token) Expres
                 next == .percent or
                 next == .equal)
             {
-                _ = tok.nextToken(it);
+                _ = it.next().?;
                 if (next == .equal or next == .excl) {
-                    if (tok.peekToken(it) != .equal) {
+                    if (Lexer.peek(it).? != .equal) {
                         @panic("Invalid expression following <num> =");
                     }
                     // ==
                     //  ^
-                    _ = tok.nextToken(it);
+                    _ = it.next().?;
                 }
                 const lr_res = alloc.alloc(ally, Expression, 2);
                 if (!lr_res.ok) @panic(std.mem.span(lr_res.x.err));
@@ -302,7 +299,7 @@ pub fn parseExpression(ally: Allocator, it: *TokenIterator, t: tok.Token) Expres
                     .tag = .identifier,
                     .x = .{ .identifier = Slice(u8).fromZig(@constCast(ident)) },
                 };
-                right.* = parseExpression(ally, it, tok.nextToken(it));
+                right.* = parseExpression(ally, it, it.next().?);
                 return .{
                     .tag = .arithmetic,
                     .x = .{ .arithmetic = .{
@@ -322,7 +319,7 @@ pub fn parseExpression(ally: Allocator, it: *TokenIterator, t: tok.Token) Expres
             }
             if (next == .openParen) {
                 // call expression
-                _ = tok.nextToken(it);
+                _ = it.next().?;
                 const parameters = parseParameters(ally, it);
                 const callee_res = alloc.alloc(ally, Expression, 1);
                 if (!callee_res.ok) @panic("parseExpression: Failed to allocate callee");
@@ -359,7 +356,6 @@ pub fn parseExpression(ally: Allocator, it: *TokenIterator, t: tok.Token) Expres
                 } },
             };
         },
-        .eof,
         .closeParen,
         .openCurly,
         .closeCurly,
@@ -376,28 +372,32 @@ pub fn parseExpression(ally: Allocator, it: *TokenIterator, t: tok.Token) Expres
         .inline_batch,
         .unknown,
         => {
-            tok.printToken(t);
+            std.io.getStdOut().writer().print("{}", .{t}) catch {};
             @panic("\nparseExpression: Invalid TokenType ^");
         },
     }
 }
 
-pub export fn parseStatement(ally: Allocator, it: *TokenIterator) Statement {
+pub export fn parseStatement(ally: Allocator, it: *Lexer) Statement {
     const snapshot = it.*;
-    const t = tok.nextToken(it);
+    const t = it.next() orelse {
+        it.* = snapshot; // restore
+        return .{ .tag = .eof };
+    };
+
     switch (t) {
         .ident, .number, .string => |str| {
             if (t == .ident and std.mem.eql(u8, str, "if")) {
-                if (tok.peekToken(it) != .openParen) {
+                if (Lexer.peek(it).? != .openParen) {
                     @panic("Missing ( after if");
                 }
-                _ = tok.nextToken(it); // (
-                const condition = parseExpression(ally, it, tok.nextToken(it));
-                if (tok.peekToken(it) != .closeParen) {
-                    tok.printToken(tok.peekToken(it));
+                _ = it.next().?; // (
+                const condition = parseExpression(ally, it, it.next().?);
+                if (Lexer.peek(it).? != .closeParen) {
+                    Lexer.peek(it).?.print();
                     @panic("\nMissing ) after if condition");
                 }
-                _ = tok.nextToken(it); // )
+                _ = it.next().?; // )
                 const if_res = alloc.alloc(ally, If, 1);
                 if (!if_res.ok) @panic(std.mem.span(if_res.x.err));
                 const if_statement = &if_res.x.val.ptr[0];
@@ -408,9 +408,9 @@ pub export fn parseStatement(ally: Allocator, it: *TokenIterator) Statement {
                 if_statement.condition = condition;
                 if_statement.consequence = consequence;
                 if_statement.alternate = null;
-                const elseToken = tok.peekToken(it);
+                const elseToken = Lexer.peek(it).?;
                 if (elseToken == .ident and std.mem.eql(u8, elseToken.ident, "else")) {
-                    _ = tok.nextToken(it);
+                    _ = it.next().?;
                     const alt_res = alloc.alloc(ally, Statement, 1);
                     if (!alt_res.ok) @panic(std.mem.span(alt_res.x.err));
                     const alternate = &alt_res.x.val.ptr[0];
@@ -419,16 +419,16 @@ pub export fn parseStatement(ally: Allocator, it: *TokenIterator) Statement {
                 }
                 return .{ .tag = .@"if", .x = .{ .@"if" = if_statement } };
             } else if (t == .ident and std.mem.eql(u8, str, "while")) {
-                if (tok.peekToken(it) != .openParen) {
+                if (Lexer.peek(it).? != .openParen) {
                     @panic("Missing ( after while");
                 }
-                _ = tok.nextToken(it); // (
-                const condition = parseExpression(ally, it, tok.nextToken(it));
-                if (tok.peekToken(it) != .closeParen) {
-                    tok.printToken(tok.peekToken(it));
+                _ = it.next().?; // (
+                const condition = parseExpression(ally, it, it.next().?);
+                if (Lexer.peek(it).? != .closeParen) {
+                    Lexer.peek(it).?.print();
                     @panic("\nMissing ) after while condition");
                 }
-                _ = tok.nextToken(it); // )
+                _ = it.next().?; // )
                 const while_res = alloc.alloc(ally, While, 1);
                 if (!while_res.ok) @panic(std.mem.span(while_res.x.err));
                 const while_statement = &while_res.x.val.ptr[0];
@@ -440,29 +440,29 @@ pub export fn parseStatement(ally: Allocator, it: *TokenIterator) Statement {
                 while_statement.body = body;
                 return .{ .tag = .@"while", .x = .{ .@"while" = while_statement } };
             } else if (t == .ident and std.mem.eql(u8, str, "return")) {
-                if (tok.peekToken(it) == .semi) {
-                    _ = tok.nextToken(it);
+                if (Lexer.peek(it).? == .semi) {
+                    _ = it.next().?;
                     return .{ .tag = .@"return", .x = .{ .@"return" = null } };
                 }
                 const ret_expr = alloc.alloc(ally, Expression, 1);
                 if (!ret_expr.ok) @panic(std.mem.span(ret_expr.x.err));
                 const ret = &ret_expr.x.val.ptr[0];
-                ret.* = parseExpression(ally, it, tok.nextToken(it));
-                const semi = tok.nextToken(it);
+                ret.* = parseExpression(ally, it, it.next().?);
+                const semi = it.next().?;
                 if (semi != .semi) {
-                    tok.printToken(semi);
-                    @panic("\nparse: Unknown token following expression statement ^");
+                    semi.print();
+                    @panic("\nparse: Unknown Lexeren following expression statement ^");
                 }
                 return .{ .tag = .@"return", .x = .{ .@"return" = ret } };
-            } else if (t == .ident and tok.peekToken(it) == .colon) {
-                _ = tok.nextToken(it); // :
-                const afterColon = tok.peekToken(it);
+            } else if (t == .ident and Lexer.peek(it).? == .colon) {
+                _ = it.next().?; // :
+                const afterColon = Lexer.peek(it).?;
                 if (afterColon != .equal and afterColon != .colon) {
-                    tok.printToken(tok.peekToken(it));
-                    @panic("Invalid token following colon ^");
+                    Lexer.peek(it).?.print();
+                    @panic("Invalid Lexeren following colon ^");
                 }
-                _ = tok.nextToken(it); // =
-                const value = parseExpression(ally, it, tok.nextToken(it));
+                _ = it.next().?; // =
+                const value = parseExpression(ally, it, it.next().?);
                 const decl_stmt = Statement{
                     .tag = .declaration,
                     .x = .{ .declaration = .{
@@ -471,15 +471,15 @@ pub export fn parseStatement(ally: Allocator, it: *TokenIterator) Statement {
                         .constant = afterColon == .colon,
                     } },
                 };
-                const semi = tok.nextToken(it);
+                const semi = it.next().?;
                 if (semi != .semi) {
-                    tok.printToken(semi);
-                    @panic("\nparse: Unknown token following expression statement ^");
+                    semi.print();
+                    @panic("\nparse: Unknown Lexeren following expression statement ^");
                 }
                 return decl_stmt;
-            } else if (t == .ident and tok.peekToken(it) == .equal) {
-                _ = tok.nextToken(it);
-                const value = parseExpression(ally, it, tok.nextToken(it));
+            } else if (t == .ident and Lexer.peek(it).? == .equal) {
+                _ = it.next().?;
+                const value = parseExpression(ally, it, it.next().?);
                 const assign_stmt = Statement{
                     .tag = .assignment,
                     .x = .{ .assignment = .{
@@ -487,10 +487,10 @@ pub export fn parseStatement(ally: Allocator, it: *TokenIterator) Statement {
                         .value = value,
                     } },
                 };
-                const semi = tok.nextToken(it);
+                const semi = it.next().?;
                 if (semi != .semi) {
-                    tok.printToken(semi);
-                    @panic("\nparse: Unknown token following expression statement ^");
+                    semi.print();
+                    @panic("\nparse: Unknown Lexeren following expression statement ^");
                 }
                 return assign_stmt;
             } else {
@@ -498,10 +498,10 @@ pub export fn parseStatement(ally: Allocator, it: *TokenIterator) Statement {
                     .tag = .expression,
                     .x = .{ .expression = parseExpression(ally, it, t) },
                 };
-                const semi = tok.nextToken(it);
+                const semi = it.next().?;
                 if (semi != .semi) {
-                    tok.printToken(semi);
-                    @panic("\nparse: Unknown token following expression statement ^");
+                    semi.print();
+                    @panic("\nparse: Unknown Lexeren following expression statement ^");
                 }
                 return s;
             }
@@ -524,13 +524,12 @@ pub export fn parseStatement(ally: Allocator, it: *TokenIterator) Statement {
                 }
                 stmt = parseStatement(ally, it);
             }
-            const closecurly = tok.peekToken(it);
+            const closecurly = Lexer.peek(it).?;
             if (closecurly != .closeCurly) {
-                tok.printToken(closecurly);
-                std.io.getStdOut().writer().writeByte('\n') catch {};
-                @panic("\nparse: Unknown token following block ^");
+                std.io.getStdOut().writer().print("{}\n", .{closecurly}) catch {};
+                @panic("\nparse: Unknown Lexeren following block ^");
             }
-            _ = tok.nextToken(it); // }
+            _ = it.next().?; // }
             const block_res = alloc.alloc(ally, Block, 1);
             if (!block_res.ok) @panic(std.mem.span(block_res.x.err));
             vec.shrinkToLength(Statement, &statements);
@@ -540,7 +539,6 @@ pub export fn parseStatement(ally: Allocator, it: *TokenIterator) Statement {
                 .x = .{ .block = &block_res.x.val.ptr[0] },
             };
         },
-        .eof,
         .openParen,
         .closeParen,
         .closeCurly,
@@ -563,7 +561,7 @@ pub export fn parseStatement(ally: Allocator, it: *TokenIterator) Statement {
     unreachable;
 }
 
-pub export fn parse(ally: Allocator, it: *TokenIterator) Program {
+pub export fn parse(ally: Allocator, it: *Lexer) Program {
     const res = vec.createVec(Statement, ally, 16);
     if (!res.ok) @panic("parse: Failed to alloc statements");
     var statements = res.x.val;

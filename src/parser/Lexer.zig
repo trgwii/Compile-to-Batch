@@ -1,15 +1,14 @@
 const std = @import("std");
 const Slice = @import("../std/Slice.zig").Slice;
 
-pub const TokenIterator = struct {
-    data: []const u8,
-    cur: usize = 0,
-    line: usize = 1,
-    col: usize = 1,
-};
+data: []const u8,
+cur: usize = 0,
+line: usize = 1,
+col: usize = 1,
+
+const Lexer = @This();
 
 pub const Token = union(enum) {
-    eof,
     ident: []const u8,
     number: []const u8,
     openParen,
@@ -33,35 +32,35 @@ pub const Token = union(enum) {
         col: usize,
         c: u8,
     },
+    pub fn print(t: Token) void {
+        std.io.getStdOut().writer().print("{}", .{t}) catch {};
+    }
+    pub fn format(t: Token, comptime _: []const u8, _: std.fmt.FormatOptions, out: anytype) !void {
+        try switch (t) {
+            .ident => |ident| out.print("Ident({s})", .{ident}),
+            .number => |number| out.print("Number({s})", .{number}),
+            .openParen => out.writeAll("OpenParen"),
+            .closeParen => out.writeAll("CloseParen"),
+            .openCurly => out.writeAll("OpenCurly"),
+            .closeCurly => out.writeAll("CloseCurly"),
+            .semi => out.writeAll("Semi"),
+            .comma => out.writeAll("Comma"),
+            .string => |string| out.print("String(\"{s}\")", .{string}),
+            .colon => out.writeAll("Colon"),
+            .equal => out.writeAll("Equal"),
+            .excl => out.writeAll("Excl"),
+            .star => out.writeAll("Star"),
+            .plus => out.writeAll("Plus"),
+            .hyphen => out.writeAll("Hyphen"),
+            .slash => out.writeAll("Slash"),
+            .percent => out.writeAll("Percent"),
+            .inline_batch => |batch| out.print("Batch {{{s}}}", .{batch}),
+            .unknown => |unknown| out.print("(unknown:{}:{}: '{c}')", .{ unknown.line, unknown.col, unknown.c }),
+        };
+    }
 };
 
-pub fn printToken(t: Token) void {
-    const out = std.io.getStdOut().writer();
-    (switch (t) {
-        .eof => out.writeAll("(eof)"),
-        .ident => |ident| out.print("Ident({s})", .{ident}),
-        .number => |number| out.print("Number({s})", .{number}),
-        .openParen => out.writeAll("OpenParen"),
-        .closeParen => out.writeAll("CloseParen"),
-        .openCurly => out.writeAll("OpenCurly"),
-        .closeCurly => out.writeAll("CloseCurly"),
-        .semi => out.writeAll("Semi"),
-        .comma => out.writeAll("Comma"),
-        .string => |string| out.print("String(\"{s}\")", .{string}),
-        .colon => out.writeAll("Colon"),
-        .equal => out.writeAll("Equal"),
-        .excl => out.writeAll("Excl"),
-        .star => out.writeAll("Star"),
-        .plus => out.writeAll("Plus"),
-        .hyphen => out.writeAll("Hyphen"),
-        .slash => out.writeAll("Slash"),
-        .percent => out.writeAll("Percent"),
-        .inline_batch => |batch| out.print("Batch {{{s}}}", .{batch}),
-        .unknown => |unknown| out.print("(unknown:{}:{}: '{c}')", .{ unknown.line, unknown.col, unknown.c }),
-    }) catch {};
-}
-
-pub fn updateLocationInfo(it: *TokenIterator, c: u8) void {
+pub fn updateLocationInfo(it: *Lexer, c: u8) void {
     if (c == '\n') {
         it.col = 0;
         it.line += 1;
@@ -70,38 +69,38 @@ pub fn updateLocationInfo(it: *TokenIterator, c: u8) void {
     }
 }
 
-pub fn tokenizerEnded(it: *TokenIterator) bool {
+pub fn ended(it: *Lexer) bool {
     return it.cur >= it.data.len;
 }
 
-pub fn resetTokenizer(it: *TokenIterator) void {
+pub fn reset(it: *Lexer) void {
     it.cur = 0;
     it.line = 1;
     it.col = 1;
 }
 
-pub fn nextChar(it: *TokenIterator) u8 {
+pub fn nextChar(it: *Lexer) u8 {
     const c = it.data.ptr[it.cur];
     it.cur += 1;
     updateLocationInfo(it, c);
     return c;
 }
 
-pub fn skipWhitespace(it: *TokenIterator, _c: u8) u8 {
+pub fn skipWhitespace(it: *Lexer, _c: u8) u8 {
     var c = _c;
     while (std.ascii.isWhitespace(c)) {
-        if (tokenizerEnded(it)) return 0;
-        c = nextChar(it);
+        if (it.ended()) return 0;
+        c = it.nextChar();
     }
     return c;
 }
 
-pub fn nextToken(it: *TokenIterator) Token {
-    if (tokenizerEnded(it)) return .eof;
+pub fn next(it: *Lexer) ?Token {
+    if (it.ended()) return null;
 
-    var c = nextChar(it);
-    c = skipWhitespace(it, c);
-    if (c == 0) return .eof;
+    var c = it.nextChar();
+    c = it.skipWhitespace(c);
+    if (c == 0) return null;
 
     switch (c) {
         '(' => return .openParen,
@@ -123,7 +122,7 @@ pub fn nextToken(it: *TokenIterator) Token {
     if (std.ascii.isAlphabetic(c) or c == '_') {
         const start = it.cur - 1;
         while (c == '_' or std.ascii.isAlphanumeric(c)) {
-            if (tokenizerEnded(it)) break;
+            if (it.ended()) break;
             c = nextChar(it);
         }
         it.cur -= 1;
@@ -131,34 +130,34 @@ pub fn nextToken(it: *TokenIterator) Token {
         if (std.mem.eql(u8, ident, "batch")) {
             it.cur += 1;
             c = skipWhitespace(it, c);
-            if (c == 0) return .eof;
+            if (c == 0) return null;
             if (c != '{') {
                 @panic("batch keyword not followed by {");
             }
             var bracket_len: usize = 0;
             while (c == '{') {
                 c = nextChar(it);
-                if (tokenizerEnded(it)) return .eof;
+                if (it.ended()) return null;
                 bracket_len += 1;
             }
             const body_start = it.cur - 1;
             while (true) {
                 c = nextChar(it);
-                if (tokenizerEnded(it)) return .{
+                if (it.ended()) return .{
                     .inline_batch = it.data[body_start .. it.cur - bracket_len],
                 };
                 if (c == '}') {
-                    var ended = true;
+                    var end = true;
                     for (0..bracket_len - 1) |_| {
                         c = nextChar(it);
-                        if (tokenizerEnded(it)) return .{
+                        if (it.ended()) return .{
                             .inline_batch = it.data[body_start .. it.cur - bracket_len],
                         };
                         if (c != '}') {
-                            ended = false;
+                            end = false;
                         }
                     }
-                    if (ended) return .{
+                    if (end) return .{
                         .inline_batch = it.data[body_start .. it.cur - bracket_len],
                     };
                 }
@@ -171,7 +170,7 @@ pub fn nextToken(it: *TokenIterator) Token {
     if (std.ascii.isDigit(c)) {
         const start = it.cur - 1;
         while (std.ascii.isDigit(c)) {
-            if (tokenizerEnded(it)) break;
+            if (it.ended()) break;
             c = nextChar(it);
         }
         it.cur -= 1;
@@ -182,10 +181,10 @@ pub fn nextToken(it: *TokenIterator) Token {
         const start = it.cur;
         var escape = false;
         while (true) {
-            if (tokenizerEnded(it)) @panic("Tokenizer: unterminated string literal");
+            if (it.ended()) @panic("Tokenizer: unterminated string literal");
             c = nextChar(it);
             if (escape) {
-                if (tokenizerEnded(it)) @panic("Tokenizer: unterminated string literal");
+                if (it.ended()) @panic("Tokenizer: unterminated string literal");
                 c = nextChar(it);
                 escape = false;
             } else if (c == '\\') {
@@ -204,11 +203,11 @@ pub fn nextToken(it: *TokenIterator) Token {
     } };
 }
 
-pub fn peekToken(it: *TokenIterator) Token {
+pub fn peek(it: *Lexer) ?Token {
     const cur = it.cur;
     const line = it.line;
     const col = it.col;
-    const t = nextToken(it);
+    const t = it.next();
     it.cur = cur;
     it.line = line;
     it.col = col;
