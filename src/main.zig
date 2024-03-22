@@ -89,8 +89,6 @@ pub fn main() !void {
 
     it.reset();
 
-    const snapshot2 = fba.end_index;
-
     const prog = try p.parse(allocator, &it);
     for (prog.statements) |stmt| {
         try p.printStatement(stmt);
@@ -110,7 +108,6 @@ pub fn main() !void {
     try outputFile.writeAll(outputVec.items);
     outputFile.close();
     try stdout.print("{s}Output Batch stored in {s}:{s}\n\n", .{ cyan, args[2], reset });
-    fba.end_index = snapshot2;
     const outputRes = try readFile(allocator, args[2]);
     defer allocator.free(outputRes);
     try stdout.print("{s}\n", .{outputRes});
