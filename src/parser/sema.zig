@@ -5,136 +5,132 @@ const alloc = @import("../std/Allocator.zig");
 const Allocator = alloc.Allocator;
 const p = @import("parser.zig");
 
-pub const Binding = extern struct {
-    name: Slice(u8),
+pub const Binding = struct {
+    name: []const u8,
     read: bool,
     constant: bool,
 };
 
-pub export fn nameListHasString(list: Slice(Binding), string: Slice(u8)) bool {
-    for (list.toZig()) |binding| {
-        if (binding.name.eql(string)) return true;
+pub fn nameListHasString(bindings: []const Binding, string: []const u8) bool {
+    for (bindings) |binding| {
+        if (std.mem.eql(u8, binding.name, string)) return true;
     }
     return false;
 }
 
-pub export fn analyzeExpression(ally: Allocator, names: Slice(Binding), expr: p.Expression) void {
+pub fn analyzeExpression(ally: std.mem.Allocator, names: []Binding, expr: p.Expression) std.mem.Allocator.Error!void {
     const stdout = std.io.getStdOut().writer();
     switch (expr.tag) {
         .identifier => {
             if (!nameListHasString(names, expr.x.identifier)) {
-                if (!expr.x.identifier.eql("print")) {
+                if (!std.mem.eql(u8, expr.x.identifier, "print")) {
                     stdout.print(
                         "Referring to undeclared name: {s}\n",
-                        .{expr.x.identifier.toZig()},
+                        .{expr.x.identifier},
                     ) catch {};
                 }
-            } else for (names.toZig()) |*binding|
-                if (binding.name.eql(expr.x.identifier)) {
+            } else for (names) |*binding|
+                if (std.mem.eql(u8, binding.name, expr.x.identifier)) {
                     binding.read = true;
                 };
         },
         .call => {
-            analyzeExpression(ally, names, expr.x.call.callee.*);
+            try analyzeExpression(ally, names, expr.x.call.callee.*);
             for (expr.x.call.parameters[0..expr.x.call.parameters_len]) |param|
-                analyzeExpression(ally, names, param);
+                try analyzeExpression(ally, names, param);
         },
         .arithmetic => {
-            analyzeExpression(ally, names, expr.x.arithmetic.left.*);
-            analyzeExpression(ally, names, expr.x.arithmetic.right.*);
+            try analyzeExpression(ally, names, expr.x.arithmetic.left.*);
+            try analyzeExpression(ally, names, expr.x.arithmetic.right.*);
         },
         .function => {
-            const locals_res = vec.createVec(Binding, ally, 1);
-            if (!locals_res.ok) @panic(std.mem.span(locals_res.x.err));
-            var locals = locals_res.x.val;
+            var locals = try std.ArrayList(Binding).initCapacity(ally, 1);
             for (expr.x.function_expression.parameters[0..expr.x.function_expression.parameters_len]) |param| {
                 const binding = Binding{
                     .name = param.x.identifier,
                     .constant = false,
                     .read = false,
                 };
-                if (!vec.append(Binding, &locals, &binding)) @panic("Failed to append to names");
+                try locals.append(binding);
             }
-            analyzeStatement(&locals, expr.x.function_expression.body.*);
+            try analyzeStatement(&locals, expr.x.function_expression.body.*);
         },
         .numeric, .string => {},
     }
 }
 
-pub export fn analyzeStatement(names: *vec.Vec(Binding), stmt: p.Statement) void {
+pub fn analyzeStatement(names: *std.ArrayList(Binding), stmt: p.Statement) !void {
     const stdout = std.io.getStdOut().writer();
     switch (stmt.tag) {
         .declaration => {
-            if (nameListHasString(names.slice, stmt.x.declaration.name)) {
+            if (nameListHasString(names.items, stmt.x.declaration.name)) {
                 stdout.print(
                     "Double declaration of: {s}\n",
-                    .{stmt.x.assignment.name.toZig()},
+                    .{stmt.x.declaration.name},
                 ) catch {};
                 return;
             }
-            analyzeExpression(names.ally, names.slice, stmt.x.declaration.value);
+            try analyzeExpression(names.allocator, names.items, stmt.x.declaration.value);
             const binding = Binding{
                 .name = stmt.x.declaration.name,
                 .constant = stmt.x.declaration.constant,
                 .read = false,
             };
-            if (!vec.append(Binding, names, &binding)) @panic("analyze: Failed to append to names");
+            try names.append(binding);
         },
         .assignment => {
-            if (!nameListHasString(names.slice, stmt.x.assignment.name)) {
+            if (!nameListHasString(names.items, stmt.x.assignment.name)) {
                 stdout.print(
                     "Assignment to undeclared name: {s}\n",
-                    .{stmt.x.assignment.name.toZig()},
+                    .{stmt.x.assignment.name},
                 ) catch {};
             } else {
-                for (names.slice.toZig()) |binding| {
-                    if (binding.name.eql(stmt.x.assignment.name)) {
+                for (names.items) |binding| {
+                    if (std.mem.eql(u8, binding.name, stmt.x.assignment.name)) {
                         if (binding.constant) {
                             stdout.print(
                                 "Assignment to constant: {s}\n",
-                                .{stmt.x.assignment.name.toZig()},
+                                .{stmt.x.assignment.name},
                             ) catch {};
                         }
                     }
                 }
             }
-            analyzeExpression(names.ally, names.slice, stmt.x.assignment.value);
+            try analyzeExpression(names.allocator, names.items, stmt.x.assignment.value);
         },
         .expression => {
-            analyzeExpression(names.ally, names.slice, stmt.x.expression);
+            try analyzeExpression(names.allocator, names.items, stmt.x.expression);
         },
         .@"if" => {
-            analyzeExpression(names.ally, names.slice, stmt.x.@"if".condition);
-            analyzeStatement(names, stmt.x.@"if".consequence.*);
-            if (stmt.x.@"if".alternate) |alt| analyzeStatement(names, alt.*);
+            try analyzeExpression(names.allocator, names.items, stmt.x.@"if".condition);
+            try analyzeStatement(names, stmt.x.@"if".consequence.*);
+            if (stmt.x.@"if".alternate) |alt| try analyzeStatement(names, alt.*);
         },
         .@"while" => {
-            analyzeExpression(names.ally, names.slice, stmt.x.@"while".condition);
-            analyzeStatement(names, stmt.x.@"while".body.*);
+            try analyzeExpression(names.allocator, names.items, stmt.x.@"while".condition);
+            try analyzeStatement(names, stmt.x.@"while".body.*);
         },
         .block => {
-            for (stmt.x.block.statements.toZig()) |s| analyzeStatement(names, s);
+            for (stmt.x.block.statements) |s| try analyzeStatement(names, s);
         },
         .@"return" => if (stmt.x.@"return") |ret|
-            analyzeExpression(names.ally, names.slice, ret.*),
+            try analyzeExpression(names.allocator, names.items, ret.*),
         .inline_batch => {},
         .eof => @panic("StatementEOF"),
     }
 }
 
-pub export fn analyze(ally: Allocator, prog: p.Program) void {
+pub fn analyze(ally: std.mem.Allocator, prog: p.Program) !void {
     const stdout = std.io.getStdOut().writer();
-    const names_res = vec.createVec(Binding, ally, 4);
-    if (!names_res.ok) @panic(std.mem.span(names_res.x.err));
-    var names = names_res.x.val;
-    for (prog.statements.toZig()) |stmt| {
-        analyzeStatement(&names, stmt);
+    var names = try std.ArrayList(Binding).initCapacity(ally, 4);
+    for (prog.statements) |stmt| {
+        try analyzeStatement(&names, stmt);
     }
-    for (names.slice.toZig()) |b| {
+    for (names.items) |b| {
         if (!b.read) {
             stdout.print("Unused {s}: {s}\n", .{
                 if (b.constant) "constant" else "variable",
-                b.name.toZig(),
+                b.name,
             }) catch {};
         }
     }

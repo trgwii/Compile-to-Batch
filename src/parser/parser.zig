@@ -1,10 +1,5 @@
 const std = @import("std");
 const builtin = @import("builtin");
-const vec = @import("../std/Vec.zig");
-const Vec = vec.Vec;
-const Slice = @import("../std/Slice.zig").Slice;
-const alloc = @import("../std/Allocator.zig");
-const Allocator = alloc.Allocator;
 const Lexer = @import("Lexer.zig");
 
 const ExpressionType = enum(c_int) {
@@ -16,38 +11,38 @@ const ExpressionType = enum(c_int) {
     function,
 };
 
-pub const Expression = extern struct {
+pub const Expression = struct {
     tag: ExpressionType,
-    x: extern union {
-        call: extern struct {
+    x: union {
+        call: struct {
             callee: *Expression,
-            parameters: [*]Expression,
+            parameters: [*]const Expression,
             parameters_len: usize,
         },
-        number: Slice(u8),
-        string: Slice(u8),
-        identifier: Slice(u8),
-        arithmetic: extern struct {
+        number: []const u8,
+        string: []const u8,
+        identifier: []const u8,
+        arithmetic: struct {
             op: u8,
             left: *Expression,
             right: *Expression,
         },
-        function_expression: extern struct {
-            parameters: [*]Expression,
+        function_expression: struct {
+            parameters: [*]const Expression,
             parameters_len: usize,
             body: *Statement,
         },
     },
 };
 
-const Declaration = extern struct {
-    name: Slice(u8),
+const Declaration = struct {
+    name: []const u8,
     value: Expression,
     constant: bool,
 };
 
-const Assignment = extern struct {
-    name: Slice(u8),
+const Assignment = struct {
+    name: []const u8,
     value: Expression,
 };
 
@@ -63,13 +58,13 @@ pub const StatementType = enum(c_int) {
     @"return",
 };
 
-pub const Statement = extern struct {
+pub const Statement = struct {
     tag: StatementType,
-    x: extern union {
+    x: union {
         expression: Expression,
         declaration: Declaration,
         assignment: Assignment,
-        inline_batch: Slice(u8),
+        inline_batch: []const u8,
         @"if": *If,
         @"while": *While,
         block: *Block,
@@ -77,155 +72,148 @@ pub const Statement = extern struct {
     } = undefined,
 };
 
-pub const If = extern struct {
+pub const If = struct {
     condition: Expression,
     consequence: *Statement,
     alternate: ?*Statement,
 };
 
-const While = extern struct {
+const While = struct {
     condition: Expression,
     body: *Statement,
 };
 
-pub const Block = extern struct {
-    statements: Slice(Statement),
+pub const Block = struct {
+    statements: []const Statement,
 };
 
-pub export fn printExpression(expr: Expression) void {
+pub fn printExpression(expr: Expression) (error{StatementEOF} || std.fs.File.WriteError)!void {
     const stdout = std.io.getStdOut().writer();
-    stdout.writeAll("Expr:") catch {};
+    try stdout.writeAll("Expr:");
     switch (expr.tag) {
         .call => {
-            stdout.writeAll("Call:(") catch {};
-            printExpression(expr.x.call.callee.*);
-            stdout.writeAll(") with (") catch {};
+            try stdout.writeAll("Call:(");
+            try printExpression(expr.x.call.callee.*);
+            try stdout.writeAll(") with (");
             if (expr.x.call.parameters_len > 0) {
-                printExpression(expr.x.call.parameters[0]);
+                try printExpression(expr.x.call.parameters[0]);
             }
             for (1..expr.x.call.parameters_len) |i| {
-                stdout.writeAll(", ") catch {};
-                printExpression(expr.x.call.parameters[i]);
+                try stdout.writeAll(", ");
+                try printExpression(expr.x.call.parameters[i]);
             }
-            stdout.writeAll(")") catch {};
+            try stdout.writeAll(")");
         },
         .identifier => {
-            stdout.print("Ident({s})", .{expr.x.identifier.toZig()}) catch {};
+            try stdout.print("Ident({s})", .{expr.x.identifier});
         },
         .numeric => {
-            stdout.print("Number({s})", .{expr.x.number.toZig()}) catch {};
+            try stdout.print("Number({s})", .{expr.x.number});
         },
         .string => {
-            stdout.print("String(\"{s}\")", .{expr.x.string.toZig()}) catch {};
+            try stdout.print("String(\"{s}\")", .{expr.x.string});
         },
         .arithmetic => {
-            stdout.writeAll("Arith(") catch {};
-            printExpression(expr.x.arithmetic.left.*);
-            stdout.writeByte(expr.x.arithmetic.op) catch {};
-            printExpression(expr.x.arithmetic.right.*);
-            stdout.writeByte(')') catch {};
+            try stdout.writeAll("Arith(");
+            try printExpression(expr.x.arithmetic.left.*);
+            try stdout.writeByte(expr.x.arithmetic.op);
+            try printExpression(expr.x.arithmetic.right.*);
+            try stdout.writeByte(')');
         },
         .function => {
-            stdout.writeAll("Function (") catch {};
+            try stdout.writeAll("Function (");
             if (expr.x.function_expression.parameters_len > 0) {
-                printExpression(expr.x.function_expression.parameters[0]);
+                try printExpression(expr.x.function_expression.parameters[0]);
             }
             for (1..expr.x.function_expression.parameters_len) |i| {
-                stdout.writeAll(", ") catch {};
-                printExpression(expr.x.function_expression.parameters[i]);
+                try stdout.writeAll(", ");
+                try printExpression(expr.x.function_expression.parameters[i]);
             }
-            stdout.writeAll(") ") catch {};
-            printStatement(expr.x.function_expression.body.*);
+            try stdout.writeAll(") ");
+            try printStatement(expr.x.function_expression.body.*);
         },
     }
 }
 
-pub export fn printStatement(stmt: Statement) void {
+pub fn printStatement(stmt: Statement) (error{StatementEOF} || std.fs.File.WriteError)!void {
     const stdout = std.io.getStdOut().writer();
     switch (stmt.tag) {
         .expression => {
-            printExpression(stmt.x.expression);
-            stdout.writeByte('\n') catch {};
+            try printExpression(stmt.x.expression);
+            try stdout.writeByte('\n');
         },
         .declaration => {
             const decl = stmt.x.declaration;
-            stdout.print("{s} :{c} ", .{
-                decl.name.toZig(),
+            try stdout.print("{s} :{c} ", .{
+                decl.name,
                 @as(u8, if (decl.constant) ':' else '='),
-            }) catch {};
-            printExpression(decl.value);
-            stdout.writeByte('\n') catch {};
+            });
+            try printExpression(decl.value);
+            try stdout.writeByte('\n');
         },
         .assignment => {
             const assign = stmt.x.assignment;
-            stdout.print("{s} = ", .{assign.name.toZig()}) catch {};
-            printExpression(assign.value);
-            stdout.writeByte('\n') catch {};
+            try stdout.print("{s} = ", .{assign.name});
+            try printExpression(assign.value);
+            try stdout.writeByte('\n');
         },
         .inline_batch => {
-            stdout.writeAll("Inline Batch {\n") catch {};
-            stdout.writeAll(stmt.x.inline_batch.toZig()) catch {};
-            stdout.writeAll("}\n") catch {};
+            try stdout.writeAll("Inline Batch {\n");
+            try stdout.writeAll(stmt.x.inline_batch);
+            try stdout.writeAll("}\n");
         },
         .@"if" => {
-            stdout.writeAll("If (") catch {};
-            printExpression(stmt.x.@"if".condition);
-            stdout.writeAll(") ") catch {};
-            printStatement(stmt.x.@"if".consequence.*);
+            try stdout.writeAll("If (");
+            try printExpression(stmt.x.@"if".condition);
+            try stdout.writeAll(") ");
+            try printStatement(stmt.x.@"if".consequence.*);
             if (stmt.x.@"if".alternate) |alt| {
-                stdout.writeAll(" else ") catch {};
-                printStatement(alt.*);
+                try stdout.writeAll(" else ");
+                try printStatement(alt.*);
             }
         },
         .@"while" => {
-            stdout.writeAll("While (") catch {};
-            printExpression(stmt.x.@"while".condition);
-            stdout.writeAll(") ") catch {};
-            printStatement(stmt.x.@"while".body.*);
+            try stdout.writeAll("While (");
+            try printExpression(stmt.x.@"while".condition);
+            try stdout.writeAll(") ");
+            try printStatement(stmt.x.@"while".body.*);
         },
         .block => {
-            stdout.writeAll("Block {\n") catch {};
+            try stdout.writeAll("Block {\n");
             for (stmt.x.block.statements.ptr[0..stmt.x.block.statements.len]) |s| {
-                printStatement(s);
+                try printStatement(s);
             }
-            stdout.writeAll("}\n") catch {};
+            try stdout.writeAll("}\n");
         },
         .@"return" => {
-            stdout.writeAll("Return (") catch {};
-            if (stmt.x.@"return") |expr| printExpression(expr.*);
-            stdout.writeAll(")\n") catch {};
+            try stdout.writeAll("Return (");
+            if (stmt.x.@"return") |expr| try printExpression(expr.*);
+            try stdout.writeAll(")\n");
         },
-        .eof => {
-            @panic("StatementEOF");
-        },
+        .eof => return error.StatementEOF,
     }
 }
 
-pub const Program = extern struct {
-    statements: Slice(Statement),
+pub const Program = struct {
+    statements: []const Statement,
 };
 
-pub export fn parseParameters(ally: Allocator, it: *Lexer) Vec(Expression) {
-    const res = vec.createVec(Expression, ally, 1);
-    if (!res.ok) @panic(std.mem.span(res.x.err));
-    var parameters = res.x.val;
+pub fn parseParameters(ally: std.mem.Allocator, it: *Lexer) ![]const Expression {
+    var parameters = try std.ArrayList(Expression).initCapacity(ally, 1);
     var param = it.next().?;
     while (param != .closeParen) : (param = it.next().?) {
-        const expr = parseExpression(ally, it, param);
+        const expr = try parseExpression(ally, it, param);
         const paramSep = it.next().?;
         if (paramSep != .comma and paramSep != .closeParen) {
             @panic("parseExpression: Parameter list expression not followed by comma or close paren ^");
         }
-        if (!vec.append(Expression, &parameters, &expr)) {
-            @panic("Failed to append to parameter list");
-        }
+        try parameters.append(expr);
         if (paramSep == .closeParen) break;
     }
-    vec.shrinkToLength(Expression, &parameters);
-    return parameters;
+    return parameters.toOwnedSlice();
 }
 
-pub fn parseExpression(ally: Allocator, it: *Lexer, t: Lexer.Token) Expression {
+pub fn parseExpression(ally: std.mem.Allocator, it: *Lexer, t: Lexer.Token) (error{StatementEOF} || std.mem.Allocator.Error || std.fs.File.WriteError)!Expression {
     switch (t) {
         .number => |number| {
             const next = Lexer.peek(it).?;
@@ -236,7 +224,7 @@ pub fn parseExpression(ally: Allocator, it: *Lexer, t: Lexer.Token) Expression {
                 next != .slash and
                 next != .percent and
                 next != .equal)
-                return .{ .tag = .numeric, .x = .{ .number = Slice(u8).fromZig(@constCast(number)) } };
+                return .{ .tag = .numeric, .x = .{ .number = number } };
             _ = it.next().?;
             if (next == .equal or next == .excl) {
                 if (Lexer.peek(it).? != .equal) {
@@ -246,12 +234,11 @@ pub fn parseExpression(ally: Allocator, it: *Lexer, t: Lexer.Token) Expression {
                 //  ^
                 _ = it.next().?;
             }
-            const lr_res = alloc.alloc(ally, Expression, 2);
-            if (!lr_res.ok) @panic(std.mem.span(lr_res.x.err));
-            const left = &lr_res.x.val.ptr[0];
-            const right = &lr_res.x.val.ptr[1];
-            left.* = parseExpression(ally, it, t);
-            right.* = parseExpression(ally, it, it.next().?);
+            const lr = try ally.alloc(Expression, 2);
+            const left = &lr[0];
+            const right = &lr[1];
+            left.* = try parseExpression(ally, it, t);
+            right.* = try parseExpression(ally, it, it.next().?);
             return .{
                 .tag = .arithmetic,
                 .x = .{ .arithmetic = .{
@@ -270,7 +257,7 @@ pub fn parseExpression(ally: Allocator, it: *Lexer, t: Lexer.Token) Expression {
             };
         },
         .string => |string| {
-            return .{ .tag = .string, .x = .{ .string = Slice(u8).fromZig(@constCast(string)) } };
+            return .{ .tag = .string, .x = .{ .string = string } };
         },
         .ident => |ident| {
             const next = Lexer.peek(it).?;
@@ -291,15 +278,14 @@ pub fn parseExpression(ally: Allocator, it: *Lexer, t: Lexer.Token) Expression {
                     //  ^
                     _ = it.next().?;
                 }
-                const lr_res = alloc.alloc(ally, Expression, 2);
-                if (!lr_res.ok) @panic(std.mem.span(lr_res.x.err));
-                const left = &lr_res.x.val.ptr[0];
-                const right = &lr_res.x.val.ptr[1];
+                const lr = try ally.alloc(Expression, 2);
+                const left = &lr[0];
+                const right = &lr[1];
                 left.* = .{
                     .tag = .identifier,
-                    .x = .{ .identifier = Slice(u8).fromZig(@constCast(ident)) },
+                    .x = .{ .identifier = ident },
                 };
-                right.* = parseExpression(ally, it, it.next().?);
+                right.* = try parseExpression(ally, it, it.next().?);
                 return .{
                     .tag = .arithmetic,
                     .x = .{ .arithmetic = .{
@@ -320,38 +306,32 @@ pub fn parseExpression(ally: Allocator, it: *Lexer, t: Lexer.Token) Expression {
             if (next == .openParen) {
                 // call expression
                 _ = it.next().?;
-                const parameters = parseParameters(ally, it);
-                const callee_res = alloc.alloc(ally, Expression, 1);
-                if (!callee_res.ok) @panic("parseExpression: Failed to allocate callee");
-                const callee = &callee_res.x.val.ptr[0];
+                const parameters = try parseParameters(ally, it);
+                const callee = try ally.create(Expression);
                 callee.* = .{
                     .tag = .identifier,
-                    .x = .{
-                        .identifier = Slice(u8).fromZig(@constCast(ident)),
-                    },
+                    .x = .{ .identifier = ident },
                 };
                 return .{
                     .tag = .call,
                     .x = .{ .call = .{
                         .callee = callee,
-                        .parameters = parameters.slice.ptr,
-                        .parameters_len = parameters.slice.len,
+                        .parameters = parameters.ptr,
+                        .parameters_len = parameters.len,
                     } },
                 };
             }
-            return .{ .tag = .identifier, .x = .{ .identifier = Slice(u8).fromZig(@constCast(ident)) } };
+            return .{ .tag = .identifier, .x = .{ .identifier = ident } };
         },
         .openParen => {
-            const parameters = parseParameters(ally, it);
-            const body_res = alloc.alloc(ally, Statement, 1);
-            if (!body_res.ok) @panic(std.mem.span(body_res.x.err));
-            const body = &body_res.x.val.ptr[0];
-            body.* = parseStatement(ally, it);
+            const parameters = try parseParameters(ally, it);
+            const body = try ally.create(Statement);
+            body.* = try parseStatement(ally, it);
             return .{
                 .tag = .function,
                 .x = .{ .function_expression = .{
-                    .parameters = parameters.slice.ptr,
-                    .parameters_len = parameters.slice.len,
+                    .parameters = parameters.ptr,
+                    .parameters_len = parameters.len,
                     .body = body,
                 } },
             };
@@ -378,7 +358,7 @@ pub fn parseExpression(ally: Allocator, it: *Lexer, t: Lexer.Token) Expression {
     }
 }
 
-pub export fn parseStatement(ally: Allocator, it: *Lexer) Statement {
+pub fn parseStatement(ally: std.mem.Allocator, it: *Lexer) !Statement {
     const snapshot = it.*;
     const t = it.next() orelse {
         it.* = snapshot; // restore
@@ -392,29 +372,23 @@ pub export fn parseStatement(ally: Allocator, it: *Lexer) Statement {
                     @panic("Missing ( after if");
                 }
                 _ = it.next().?; // (
-                const condition = parseExpression(ally, it, it.next().?);
+                const condition = try parseExpression(ally, it, it.next().?);
                 if (Lexer.peek(it).? != .closeParen) {
                     Lexer.peek(it).?.print();
                     @panic("\nMissing ) after if condition");
                 }
                 _ = it.next().?; // )
-                const if_res = alloc.alloc(ally, If, 1);
-                if (!if_res.ok) @panic(std.mem.span(if_res.x.err));
-                const if_statement = &if_res.x.val.ptr[0];
-                const cons_res = alloc.alloc(ally, Statement, 1);
-                if (!cons_res.ok) @panic(std.mem.span(cons_res.x.err));
-                const consequence = &cons_res.x.val.ptr[0];
-                consequence.* = parseStatement(ally, it);
+                const if_statement = try ally.create(If);
+                const consequence = try ally.create(Statement);
+                consequence.* = try parseStatement(ally, it);
                 if_statement.condition = condition;
                 if_statement.consequence = consequence;
                 if_statement.alternate = null;
                 const elseToken = Lexer.peek(it).?;
                 if (elseToken == .ident and std.mem.eql(u8, elseToken.ident, "else")) {
                     _ = it.next().?;
-                    const alt_res = alloc.alloc(ally, Statement, 1);
-                    if (!alt_res.ok) @panic(std.mem.span(alt_res.x.err));
-                    const alternate = &alt_res.x.val.ptr[0];
-                    alternate.* = parseStatement(ally, it);
+                    const alternate = try ally.create(Statement);
+                    alternate.* = try parseStatement(ally, it);
                     if_statement.alternate = alternate;
                 }
                 return .{ .tag = .@"if", .x = .{ .@"if" = if_statement } };
@@ -423,19 +397,15 @@ pub export fn parseStatement(ally: Allocator, it: *Lexer) Statement {
                     @panic("Missing ( after while");
                 }
                 _ = it.next().?; // (
-                const condition = parseExpression(ally, it, it.next().?);
+                const condition = try parseExpression(ally, it, it.next().?);
                 if (Lexer.peek(it).? != .closeParen) {
                     Lexer.peek(it).?.print();
                     @panic("\nMissing ) after while condition");
                 }
                 _ = it.next().?; // )
-                const while_res = alloc.alloc(ally, While, 1);
-                if (!while_res.ok) @panic(std.mem.span(while_res.x.err));
-                const while_statement = &while_res.x.val.ptr[0];
-                const body_res = alloc.alloc(ally, Statement, 1);
-                if (!body_res.ok) @panic(std.mem.span(body_res.x.err));
-                const body = &body_res.x.val.ptr[0];
-                body.* = parseStatement(ally, it);
+                const while_statement = try ally.create(While);
+                const body = try ally.create(Statement);
+                body.* = try parseStatement(ally, it);
                 while_statement.condition = condition;
                 while_statement.body = body;
                 return .{ .tag = .@"while", .x = .{ .@"while" = while_statement } };
@@ -444,10 +414,8 @@ pub export fn parseStatement(ally: Allocator, it: *Lexer) Statement {
                     _ = it.next().?;
                     return .{ .tag = .@"return", .x = .{ .@"return" = null } };
                 }
-                const ret_expr = alloc.alloc(ally, Expression, 1);
-                if (!ret_expr.ok) @panic(std.mem.span(ret_expr.x.err));
-                const ret = &ret_expr.x.val.ptr[0];
-                ret.* = parseExpression(ally, it, it.next().?);
+                const ret = try ally.create(Expression);
+                ret.* = try parseExpression(ally, it, it.next().?);
                 const semi = it.next().?;
                 if (semi != .semi) {
                     semi.print();
@@ -462,11 +430,11 @@ pub export fn parseStatement(ally: Allocator, it: *Lexer) Statement {
                     @panic("Invalid Lexeren following colon ^");
                 }
                 _ = it.next().?; // =
-                const value = parseExpression(ally, it, it.next().?);
+                const value = try parseExpression(ally, it, it.next().?);
                 const decl_stmt = Statement{
                     .tag = .declaration,
                     .x = .{ .declaration = .{
-                        .name = Slice(u8).fromZig(@constCast(str)),
+                        .name = str,
                         .value = value,
                         .constant = afterColon == .colon,
                     } },
@@ -479,11 +447,11 @@ pub export fn parseStatement(ally: Allocator, it: *Lexer) Statement {
                 return decl_stmt;
             } else if (t == .ident and Lexer.peek(it).? == .equal) {
                 _ = it.next().?;
-                const value = parseExpression(ally, it, it.next().?);
+                const value = try parseExpression(ally, it, it.next().?);
                 const assign_stmt = Statement{
                     .tag = .assignment,
                     .x = .{ .assignment = .{
-                        .name = Slice(u8).fromZig(@constCast(t.ident)),
+                        .name = t.ident,
                         .value = value,
                     } },
                 };
@@ -496,7 +464,7 @@ pub export fn parseStatement(ally: Allocator, it: *Lexer) Statement {
             } else {
                 const s = Statement{
                     .tag = .expression,
-                    .x = .{ .expression = parseExpression(ally, it, t) },
+                    .x = .{ .expression = try parseExpression(ally, it, t) },
                 };
                 const semi = it.next().?;
                 if (semi != .semi) {
@@ -509,20 +477,16 @@ pub export fn parseStatement(ally: Allocator, it: *Lexer) Statement {
         .inline_batch => |batch| {
             return .{
                 .tag = .inline_batch,
-                .x = .{ .inline_batch = Slice(u8).fromZig(@constCast(batch)) },
+                .x = .{ .inline_batch = batch },
             };
         },
         .openCurly => {
-            const statements_res = vec.createVec(Statement, ally, 4);
-            if (!statements_res.ok) @panic(std.mem.span(statements_res.x.err));
-            var statements = statements_res.x.val;
-            var stmt = parseStatement(ally, it);
+            var statements = try std.ArrayList(Statement).initCapacity(ally, 4);
+            var stmt = try parseStatement(ally, it);
             while (stmt.tag != .eof) {
-                printStatement(stmt);
-                if (!vec.append(Statement, &statements, &stmt)) {
-                    @panic("Failed to append statement in block");
-                }
-                stmt = parseStatement(ally, it);
+                try printStatement(stmt);
+                try statements.append(stmt);
+                stmt = try parseStatement(ally, it);
             }
             const closecurly = Lexer.peek(it).?;
             if (closecurly != .closeCurly) {
@@ -530,13 +494,11 @@ pub export fn parseStatement(ally: Allocator, it: *Lexer) Statement {
                 @panic("\nparse: Unknown Lexeren following block ^");
             }
             _ = it.next().?; // }
-            const block_res = alloc.alloc(ally, Block, 1);
-            if (!block_res.ok) @panic(std.mem.span(block_res.x.err));
-            vec.shrinkToLength(Statement, &statements);
-            block_res.x.val.ptr[0].statements = statements.slice;
+            const block = try ally.create(Block);
+            block.* = .{ .statements = try statements.toOwnedSlice() };
             return .{
                 .tag = .block,
-                .x = .{ .block = &block_res.x.val.ptr[0] },
+                .x = .{ .block = block },
             };
         },
         .openParen,
@@ -561,17 +523,12 @@ pub export fn parseStatement(ally: Allocator, it: *Lexer) Statement {
     unreachable;
 }
 
-pub export fn parse(ally: Allocator, it: *Lexer) Program {
-    const res = vec.createVec(Statement, ally, 16);
-    if (!res.ok) @panic("parse: Failed to alloc statements");
-    var statements = res.x.val;
-    var stmt = parseStatement(ally, it);
+pub fn parse(ally: std.mem.Allocator, it: *Lexer) !Program {
+    var statements = try std.ArrayList(Statement).initCapacity(ally, 16);
+    var stmt = try parseStatement(ally, it);
     while (stmt.tag != .eof) {
-        if (!vec.append(Statement, &statements, &stmt)) {
-            @panic("Failed to append to statement list");
-        }
-        stmt = parseStatement(ally, it);
+        try statements.append(stmt);
+        stmt = try parseStatement(ally, it);
     }
-    vec.shrinkToLength(Statement, &statements);
-    return .{ .statements = statements.slice };
+    return .{ .statements = try statements.toOwnedSlice() };
 }

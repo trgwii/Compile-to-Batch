@@ -89,39 +89,36 @@ pub fn main() !void {
 
     it.reset();
 
-    var state = a.Bump{ .mem = .{ .ptr = &mem, .len = mem.len }, .cur = fba.end_index };
-    const ally = a.Allocator{ .state = &state, .realloc = a.bumpRealloc };
+    const snapshot2 = fba.end_index;
 
-    const prog = p.parse(ally, &it);
-    for (prog.statements.toZig()) |stmt| {
-        p.printStatement(stmt);
+    const prog = try p.parse(allocator, &it);
+    for (prog.statements) |stmt| {
+        try p.printStatement(stmt);
     }
 
     try stdout.print("{s}--- /PARSE ---\n", .{gray});
 
     try stdout.print("---  ANALYZE ---{s}\n", .{red});
-    s.analyze(ally, prog);
+    try s.analyze(allocator, prog);
     try stdout.print("{s}--- /ANALYZE ---\n", .{gray});
 
     try stdout.print("---  CODEGEN ---{s}\n", .{pink});
 
-    const outputVecRes = v.createVec(u8, ally, 512);
-    if (!outputVecRes.ok) @panic(std.mem.span(outputVecRes.x.err));
-    var outputVec = outputVecRes.x.val;
-    c.outputBatch(prog, ally, &outputVec);
+    var outputVec = try std.ArrayList(u8).initCapacity(allocator, 512);
+    try c.outputBatch(prog, allocator, &outputVec);
     const outputFile = try std.fs.cwd().createFile(args[2], .{});
-    try outputFile.writeAll(outputVec.slice.toZig());
+    try outputFile.writeAll(outputVec.items);
     outputFile.close();
     try stdout.print("{s}Output Batch stored in {s}:{s}\n\n", .{ cyan, args[2], reset });
-    fba.end_index = state.cur;
+    fba.end_index = snapshot2;
     const outputRes = try readFile(allocator, args[2]);
     defer allocator.free(outputRes);
     try stdout.print("{s}\n", .{outputRes});
     try stdout.print("{s}--- /CODEGEN ---\n", .{gray});
 
     try stdout.print("{s}Memory usage: ", .{cyan});
-    printSize(state.cur);
+    printSize(fba.end_index);
     try stdout.print(" / ", .{});
-    printSize(state.mem.len);
+    printSize(fba.buffer.len);
     try stdout.print("{s}\n", .{reset});
 }
