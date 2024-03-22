@@ -1,32 +1,19 @@
 const std = @import("std");
-const a = @import("std/Allocator.zig");
 const Lexer = @import("parser/Lexer.zig");
 const p = @import("parser/parser.zig");
 const s = @import("parser/sema.zig");
 const c = @import("parser/codegen.zig");
-const Slice = @import("std/Slice.zig").Slice;
-const v = @import("std/Vec.zig");
 
-fn printSize(bytes: usize) void {
-    const out = std.io.getStdOut().writer();
+fn printSize(bytes: usize, writer: std.fs.File.Writer) !void {
     const fBytes: f64 = @floatFromInt(bytes);
-    inline for (.{
+    return inline for (.{
         .{ "Mi", 1024 * 1024 },
         .{ "Ki", 1024 },
     }) |x| {
         if (bytes >= x[1]) {
-            out.print("{d:.2}{s}B", .{ fBytes / x[1], x[0] }) catch {};
-            return;
+            break writer.print("{d:.2}{s}B", .{ fBytes / x[1], x[0] });
         }
-    } else out.print("{}B", .{bytes}) catch {};
-}
-
-fn startsWith(haystack: [*:0]const u8, needle: [*:0]const u8) bool {
-    return std.mem.startsWith(u8, std.mem.span(haystack), std.mem.span(needle));
-}
-
-fn str_len(str: [*:0]const u8) usize {
-    return std.mem.len(str);
+    } else writer.print("{}B", .{bytes});
 }
 
 fn readFile(ally: std.mem.Allocator, path: []const u8) ![]u8 {
@@ -73,7 +60,7 @@ pub fn main() !void {
     var it = Lexer{ .data = data };
     var nl: usize = 0;
     while (it.next()) |t| {
-        t.print();
+        try t.print();
         nl += 1;
         if (nl >= 4) {
             nl = 0;
@@ -114,8 +101,8 @@ pub fn main() !void {
     try stdout.print("{s}--- /CODEGEN ---\n", .{gray});
 
     try stdout.print("{s}Memory usage: ", .{cyan});
-    printSize(fba.end_index);
+    try printSize(fba.end_index, stdout);
     try stdout.print(" / ", .{});
-    printSize(fba.buffer.len);
+    try printSize(fba.buffer.len, stdout);
     try stdout.print("{s}\n", .{reset});
 }

@@ -1,9 +1,6 @@
 const std = @import("std");
 const p = @import("parser.zig");
 const s = @import("sema.zig");
-const a = @import("../std/Allocator.zig");
-const Slice = @import("../std/Slice.zig").Slice;
-const v = @import("../std/Vec.zig");
 
 pub fn emitExpression(
     expr: p.Expression,
@@ -162,11 +159,6 @@ pub fn emitExpression(
             @panic("emitExpression with FunctionExpression: Should not be called");
         },
     }
-}
-
-pub export fn trim(str: Slice(u8)) Slice(u8) {
-    const res = std.mem.trim(u8, str.toZig(), &std.ascii.whitespace);
-    return .{ .ptr = @constCast(res.ptr), .len = res.len };
 }
 
 pub fn emitStatement(
@@ -429,7 +421,7 @@ pub fn emitStatement(
             switch (expr.tag) {
                 .call => {
                     if (expr.x.call.callee.tag != .identifier) {
-                        stdout.writeAll("Skipped unknown callee\n") catch {};
+                        try stdout.writeAll("Skipped unknown callee\n");
                         break :b;
                     }
                     if (std.mem.eql(u8, expr.x.call.callee.x.identifier, "print")) {

@@ -1,8 +1,4 @@
 const std = @import("std");
-const Slice = @import("../std/Slice.zig").Slice;
-const vec = @import("../std/Vec.zig");
-const alloc = @import("../std/Allocator.zig");
-const Allocator = alloc.Allocator;
 const p = @import("parser.zig");
 
 pub const Binding = struct {
@@ -18,16 +14,16 @@ pub fn nameListHasString(bindings: []const Binding, string: []const u8) bool {
     return false;
 }
 
-pub fn analyzeExpression(ally: std.mem.Allocator, names: []Binding, expr: p.Expression) std.mem.Allocator.Error!void {
+pub fn analyzeExpression(ally: std.mem.Allocator, names: []Binding, expr: p.Expression) (std.mem.Allocator.Error || std.fs.File.WriteError)!void {
     const stdout = std.io.getStdOut().writer();
     switch (expr.tag) {
         .identifier => {
             if (!nameListHasString(names, expr.x.identifier)) {
                 if (!std.mem.eql(u8, expr.x.identifier, "print")) {
-                    stdout.print(
+                    try stdout.print(
                         "Referring to undeclared name: {s}\n",
                         .{expr.x.identifier},
-                    ) catch {};
+                    );
                 }
             } else for (names) |*binding|
                 if (std.mem.eql(u8, binding.name, expr.x.identifier)) {
@@ -64,10 +60,10 @@ pub fn analyzeStatement(names: *std.ArrayList(Binding), stmt: p.Statement) !void
     switch (stmt.tag) {
         .declaration => {
             if (nameListHasString(names.items, stmt.x.declaration.name)) {
-                stdout.print(
+                try stdout.print(
                     "Double declaration of: {s}\n",
                     .{stmt.x.declaration.name},
-                ) catch {};
+                );
                 return;
             }
             try analyzeExpression(names.allocator, names.items, stmt.x.declaration.value);
@@ -80,18 +76,18 @@ pub fn analyzeStatement(names: *std.ArrayList(Binding), stmt: p.Statement) !void
         },
         .assignment => {
             if (!nameListHasString(names.items, stmt.x.assignment.name)) {
-                stdout.print(
+                try stdout.print(
                     "Assignment to undeclared name: {s}\n",
                     .{stmt.x.assignment.name},
-                ) catch {};
+                );
             } else {
                 for (names.items) |binding| {
                     if (std.mem.eql(u8, binding.name, stmt.x.assignment.name)) {
                         if (binding.constant) {
-                            stdout.print(
+                            try stdout.print(
                                 "Assignment to constant: {s}\n",
                                 .{stmt.x.assignment.name},
-                            ) catch {};
+                            );
                         }
                     }
                 }
@@ -128,10 +124,10 @@ pub fn analyze(ally: std.mem.Allocator, prog: p.Program) !void {
     }
     for (names.items) |b| {
         if (!b.read) {
-            stdout.print("Unused {s}: {s}\n", .{
+            try stdout.print("Unused {s}: {s}\n", .{
                 if (b.constant) "constant" else "variable",
                 b.name,
-            }) catch {};
+            });
         }
     }
 }

@@ -352,7 +352,7 @@ pub fn parseExpression(ally: std.mem.Allocator, it: *Lexer, t: Lexer.Token) (err
         .inline_batch,
         .unknown,
         => {
-            std.io.getStdOut().writer().print("{}", .{t}) catch {};
+            try std.io.getStdOut().writer().print("{}", .{t});
             @panic("\nparseExpression: Invalid TokenType ^");
         },
     }
@@ -374,7 +374,7 @@ pub fn parseStatement(ally: std.mem.Allocator, it: *Lexer) !Statement {
                 _ = it.next().?; // (
                 const condition = try parseExpression(ally, it, it.next().?);
                 if (Lexer.peek(it).? != .closeParen) {
-                    Lexer.peek(it).?.print();
+                    try Lexer.peek(it).?.print();
                     @panic("\nMissing ) after if condition");
                 }
                 _ = it.next().?; // )
@@ -399,7 +399,7 @@ pub fn parseStatement(ally: std.mem.Allocator, it: *Lexer) !Statement {
                 _ = it.next().?; // (
                 const condition = try parseExpression(ally, it, it.next().?);
                 if (Lexer.peek(it).? != .closeParen) {
-                    Lexer.peek(it).?.print();
+                    try Lexer.peek(it).?.print();
                     @panic("\nMissing ) after while condition");
                 }
                 _ = it.next().?; // )
@@ -418,7 +418,7 @@ pub fn parseStatement(ally: std.mem.Allocator, it: *Lexer) !Statement {
                 ret.* = try parseExpression(ally, it, it.next().?);
                 const semi = it.next().?;
                 if (semi != .semi) {
-                    semi.print();
+                    try semi.print();
                     @panic("\nparse: Unknown Lexeren following expression statement ^");
                 }
                 return .{ .tag = .@"return", .x = .{ .@"return" = ret } };
@@ -426,7 +426,7 @@ pub fn parseStatement(ally: std.mem.Allocator, it: *Lexer) !Statement {
                 _ = it.next().?; // :
                 const afterColon = Lexer.peek(it).?;
                 if (afterColon != .equal and afterColon != .colon) {
-                    Lexer.peek(it).?.print();
+                    try Lexer.peek(it).?.print();
                     @panic("Invalid Lexeren following colon ^");
                 }
                 _ = it.next().?; // =
@@ -441,7 +441,7 @@ pub fn parseStatement(ally: std.mem.Allocator, it: *Lexer) !Statement {
                 };
                 const semi = it.next().?;
                 if (semi != .semi) {
-                    semi.print();
+                    try semi.print();
                     @panic("\nparse: Unknown Lexeren following expression statement ^");
                 }
                 return decl_stmt;
@@ -457,7 +457,7 @@ pub fn parseStatement(ally: std.mem.Allocator, it: *Lexer) !Statement {
                 };
                 const semi = it.next().?;
                 if (semi != .semi) {
-                    semi.print();
+                    try semi.print();
                     @panic("\nparse: Unknown Lexeren following expression statement ^");
                 }
                 return assign_stmt;
@@ -468,7 +468,7 @@ pub fn parseStatement(ally: std.mem.Allocator, it: *Lexer) !Statement {
                 };
                 const semi = it.next().?;
                 if (semi != .semi) {
-                    semi.print();
+                    try semi.print();
                     @panic("\nparse: Unknown Lexeren following expression statement ^");
                 }
                 return s;
@@ -490,7 +490,7 @@ pub fn parseStatement(ally: std.mem.Allocator, it: *Lexer) !Statement {
             }
             const closecurly = Lexer.peek(it).?;
             if (closecurly != .closeCurly) {
-                std.io.getStdOut().writer().print("{}\n", .{closecurly}) catch {};
+                try std.io.getStdOut().writer().print("{}\n", .{closecurly});
                 @panic("\nparse: Unknown Lexeren following block ^");
             }
             _ = it.next().?; // }

@@ -1,5 +1,4 @@
 const std = @import("std");
-const Slice = @import("../std/Slice.zig").Slice;
 
 data: []const u8,
 cur: usize = 0,
@@ -32,8 +31,8 @@ pub const Token = union(enum) {
         col: usize,
         c: u8,
     },
-    pub fn print(t: Token) void {
-        std.io.getStdOut().writer().print("{}", .{t}) catch {};
+    pub fn print(t: Token) !void {
+        try std.io.getStdOut().writer().print("{}", .{t});
     }
     pub fn format(t: Token, comptime _: []const u8, _: std.fmt.FormatOptions, out: anytype) !void {
         try switch (t) {
